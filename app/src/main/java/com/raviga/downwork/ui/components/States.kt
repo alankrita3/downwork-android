@@ -129,7 +129,7 @@ fun KeyValueRow(label: String, value: String, modifier: Modifier = Modifier, val
         Row(Modifier.fillMaxWidth().padding(vertical = Dw.rowPadding), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = DwType.body, color = Ink.graphite, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            Text(value, style = DwType.body, color = valueColor, textAlign = TextAlign.End)
+            Text(value, style = DwType.body, color = valueColor, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f))
         }
         Hairline()
     }

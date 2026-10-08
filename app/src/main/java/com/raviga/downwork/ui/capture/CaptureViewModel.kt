@@ -73,6 +73,22 @@ class CaptureViewModel(
     }
 
     fun setTyped(text: String) = _state.update { it.copy(typed = text) }
+
+    /** Emulators have no microphone and demos want a quick start: offer a canned description. */
+    val offersSample: Boolean get() = container.isDemo || isEmulator()
+
+    fun useSample() = _state.update { it.copy(tab = 1, typed = SAMPLE_DESCRIPTION, error = null) }
+
+    private fun isEmulator(): Boolean {
+        val fp = android.os.Build.FINGERPRINT.lowercase()
+        val product = android.os.Build.PRODUCT.lowercase()
+        return fp.contains("generic") || fp.contains("emulator") || product.contains("sdk") || product.contains("emulator") ||
+            android.os.Build.HARDWARE.lowercase().let { it.contains("goldfish") || it.contains("ranchu") }
+    }
+
+    companion object {
+        const val SAMPLE_DESCRIPTION = "I want an app for my salon in Delhi called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online with UPI. They should get a reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
+    }
     fun setTranscript(text: String) = _state.update { it.copy(transcript = text) }
 
     private fun needsConsent(): Boolean = container.session.needsAiConsent(container.session.me.value)

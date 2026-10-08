@@ -61,7 +61,7 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                 when {
                     state.needsNewQuote -> PrimaryButton("Get a new quote", onClick = { vm.requestQuote() })
                     state.shortBy > 0 -> {
-                        Text("You need ${state.shortBy} more ${if (state.shortBy == 1) "credit" else "credits"}.", style = DwType.secondary, color = Ink.graphite, modifier = Modifier.padding(bottom = 8.dp))
+                        Text("You have ${state.balance} ${if (state.balance == 1) "credit" else "credits"}. You need ${state.shortBy} more.", style = DwType.secondary, color = Ink.graphite, modifier = Modifier.padding(bottom = 8.dp))
                         PrimaryButton("Buy credits", onClick = { nav.navigate(Routes.CREDITS) })
                     }
                     state.isResubmit -> PrimaryButton(

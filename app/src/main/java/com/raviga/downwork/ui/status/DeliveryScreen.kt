@@ -140,7 +140,7 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 when (aws.status) {
-                                    "deployed" -> "Deployed to your AWS account." + aws.note.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
+                                    "deployed" -> aws.note.takeIf { it.isNotBlank() } ?: "Deployed to your AWS account."
                                     else -> "AWS deployment is in progress."
                                 },
                                 style = DwType.body, color = if (aws.status == "deployed") Ink.moss else Ink.ink,

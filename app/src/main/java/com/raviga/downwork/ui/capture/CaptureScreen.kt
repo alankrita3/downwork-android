@@ -156,10 +156,10 @@ private fun CapturePhase(nav: NavController, vm: CaptureViewModel, state: Captur
                     MicButton(recording = state.listening, onClick = onMic, icon = Icons.Outlined.Mic)
                 }
                 Spacer(Modifier.height(8.dp))
-                if (canFinish && !state.listening) {
-                    TertiaryButton("Done, show me the text", onClick = { vm.finishCapture() })
-                } else {
-                    Spacer(Modifier.height(Dw.buttonHeight))
+                when {
+                    canFinish && !state.listening -> TertiaryButton("Done, show me the text", onClick = { vm.finishCapture() })
+                    vm.offersSample && !state.listening -> TertiaryButton("Use a sample description", onClick = { vm.useSample() }, color = Ink.graphite)
+                    else -> Spacer(Modifier.height(Dw.buttonHeight))
                 }
                 Spacer(Modifier.height(16.dp))
             } else {

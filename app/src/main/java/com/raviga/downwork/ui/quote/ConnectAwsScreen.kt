@@ -176,8 +176,13 @@ fun ConnectAwsScreen(nav: NavController) {
                 Spacer(Modifier.height(8.dp))
                 KeyValueRow("Role name", target.roleName ?: config.delivery.awsRoleName)
                 KeyValueRow("Trusted account", state.info?.trustedAccountId?.ifBlank { null } ?: config.delivery.awsTrustedAccountId)
-                KeyValueRow("External ID", target.externalId ?: "")
-                InlineAction("Copy external ID", onClick = { clipboard.setText(AnnotatedString(target.externalId.orEmpty())) }, modifier = Modifier.padding(top = 4.dp))
+                Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                    Text("External ID", style = DwType.body, color = Ink.graphite)
+                    Spacer(Modifier.height(4.dp))
+                    Text(target.externalId ?: "", style = DwType.body, color = Ink.ink)
+                    InlineAction("Copy", onClick = { clipboard.setText(AnnotatedString(target.externalId.orEmpty())) }, modifier = Modifier.padding(top = 2.dp))
+                }
+                com.raviga.downwork.ui.components.Hairline()
                 KeyValueRow(
                     "Status",
                     if (target.verified) "Connected ${Time.shortDate(target.verifiedAt)}" else "Not verified yet",

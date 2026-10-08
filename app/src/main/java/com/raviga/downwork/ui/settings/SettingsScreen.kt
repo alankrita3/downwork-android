@@ -73,6 +73,17 @@ fun SettingsScreen(nav: NavController) {
             DwRow(title = "Privacy policy", onClick = { openLink(context, legal.privacyUrl) }, chevron = false)
             DwRow(title = "Terms of service", onClick = { openLink(context, legal.termsUrl) }, chevron = false)
             if (vm.isDebug) DebugBackendRow(context, vm.isDemo)
+            if (vm.isDemo) {
+                Spacer(Modifier.height(24.dp))
+                Text("Demo controls", style = DwType.secondary, color = Ink.graphite, modifier = Modifier.padding(horizontal = Dw.gutter, vertical = 4.dp))
+                DwRow(title = "Advance the latest project", subtitle = "Plays the team's next move now instead of on the timer", onClick = { vm.demoAdvance() }, chevron = false)
+                DwRow(title = "Add 50 credits", subtitle = "No store purchase in demo mode", onClick = { vm.demoAddCredits() }, chevron = false)
+                DwRow(title = "Reset demo data", subtitle = "Clears projects, credits and consent on this phone", titleColor = Ink.brick, onClick = { vm.demoReset() }, chevron = false)
+                Column(Modifier.padding(horizontal = Dw.gutter)) {
+                    com.raviga.downwork.ui.components.InlineNotice(state.notice, color = Ink.moss)
+                    com.raviga.downwork.ui.components.InlineNotice(state.error)
+                }
+            }
             Spacer(Modifier.height(24.dp))
             Column(Modifier.padding(horizontal = Dw.gutter)) {
                 Text("DownWork ${vm.versionName}", style = DwType.caption, color = Ink.graphite)

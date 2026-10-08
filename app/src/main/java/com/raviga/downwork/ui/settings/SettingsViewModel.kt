@@ -116,4 +116,26 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     suspend fun markRecoveryKeyShown() = container.prefs.setRecoveryKeyShown()
+
+    // ----- demo controls -----
+    private val demo get() = container.api as? com.raviga.downwork.data.demo.DemoApi
+
+    fun demoAdvance() = demoAction { demo?.demoAdvanceLatest() ?: "No submitted project to advance." }
+    fun demoAddCredits() = demoAction { demo?.demoAddCredits(50); container.credits.refresh(); "50 demo credits added." }
+    fun demoReset() = demoAction {
+        demo?.demoReset()
+        container.cache.clearAll()
+        container.prefs.clear()
+        "Demo data reset. Restart the app."
+    }
+
+    private fun demoAction(block: suspend () -> String) {
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, error = null, notice = null) }
+            runCatching { block() }
+                .onSuccess { msg -> runCatching { container.projects.refreshAll() }; _state.update { it.copy(notice = msg) } }
+                .onFailure { e -> _state.update { it.copy(error = e.userLine()) } }
+            _state.update { it.copy(busy = false) }
+        }
+    }
 }

@@ -131,13 +131,18 @@ object BriefWriter {
         val summary = buildString {
             append(title).append(" is ")
             append(if (platforms.any { it.contains("web", true) } && platforms.none { it.contains("Android") }) "a web product" else "a mobile app")
-            if (users.isNotEmpty()) append(" for ").append(users.joinToString(" and "))
-            if (purpose.isNotBlank()) append(" that ").append(purpose) else append(" built from your description")
+            if (users.isNotEmpty()) append(" for ").append(naturalJoin(users))
+            val cleanPurpose = purpose.replace(Regex("\\s+(called|named)\\s+\\S+$", RegexOption.IGNORE_CASE), "").trim()
+            if (cleanPurpose.isNotBlank()) {
+                val nounPhrase = Regex("^(my|our|a|an|the|this)\\b", RegexOption.IGNORE_CASE).containsMatchIn(cleanPurpose)
+                append(if (nounPhrase) " for " else " that ").append(cleanPurpose)
+            }
             append(". ")
-            append("The first release ships ${must.size} must-have ${if (must.size == 1) "feature" else "features"} on ")
-            append(platforms.joinToString(", ").lowercase(Locale.getDefault()).replace("android", "Android").replace("ios", "iOS"))
+            append("The first release ships ${must.size} must-have ${if (must.size == 1) "feature" else "features"} across ")
+            append(naturalJoin(platforms.map { shortPlatform(it) }))
             append(".")
-            if (must.isNotEmpty()) append(" It focuses on ").append(must.take(2).joinToString(" and ") { it.replaceFirstChar { c -> c.lowercase() } }).append(".")
+            val focus = must.filterNot { it.equals(cleanPurpose, true) }.take(2)
+            if (focus.isNotEmpty()) append(" It focuses on ").append(naturalJoin(focus.map { f -> f.replaceFirstChar { c -> c.lowercase() } })).append(".")
         }
 
         val targetUsers = buildString {
@@ -338,6 +343,7 @@ object BriefWriter {
     private fun clientLines(text: String): List<String> = text
         .split(Regex("[.!?\\n;]+"))
         .map { it.trim() }
+        .filterNot { Regex("^(i|we)\\s+(want|need|would like|am looking|are looking|wish)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it) && Regex("\\b(app|application|platform|website|web app|tool|service|system|marketplace|portal)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it) }
         .map {
             it.replace(Regex("^(so|basically|okay|ok|um|uh|yeah|like|also|and|then|plus)[, ]+", RegexOption.IGNORE_CASE), "")
                 .replace(Regex("^(i|we)\\s+(also\\s+)?(want|need|would like|think|wish)\\s+(it\\s+)?(to\\s+|that\\s+)?", RegexOption.IGNORE_CASE), "")
@@ -348,6 +354,21 @@ object BriefWriter {
         .filter { it.length in 12..140 }
         .map { it.replaceFirstChar { c -> c.uppercase() } }
         .distinctBy { it.lowercase() }
+
+    private fun naturalJoin(items: List<String>): String = when (items.size) {
+        0 -> ""
+        1 -> items[0]
+        2 -> items[0] + " and " + items[1]
+        else -> items.dropLast(1).joinToString(", ") + " and " + items.last()
+    }
+
+    private fun shortPlatform(p: String): String = when {
+        p.startsWith("Android") -> "Android"
+        p.startsWith("iOS") -> "iOS"
+        p.startsWith("Web") -> "the web"
+        p.startsWith("Admin") -> "an admin panel"
+        else -> "a backend API on AWS"
+    }
 
     private fun titleCase(s: String) = s.split(" ").filter { it.isNotBlank() }
         .joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }

@@ -841,6 +841,27 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         next to Unit
     }
 
+    // ----- demo controls (Settings, demo mode only) -----
+
+    /** Forces the next lifecycle step on the most recently updated non-terminal project. */
+    suspend fun demoAdvanceLatest(): String? = mutate { s ->
+        val latest = s.projects.values
+            .filter { it.status != ProjectStatus.DRAFT && !ProjectStatus.isTerminal(it.status) }
+            .maxByOrNull { it.updatedAt ?: "" } ?: return@mutate s to null
+        val backdated = s.copy(statusChangedAt = s.statusChangedAt + (latest.id to Instant.now().minusSeconds(3600).toString()))
+        val (next, p) = advance(backdated, latest)
+        next to "${p.title.ifBlank { "Project" }} is now ${p.status.replace('_', ' ')}"
+    }
+
+    suspend fun demoAddCredits(credits: Int) = mutate { s ->
+        ledger(s, "adjustment", credits, null, "Demo credits") to Unit
+    }
+
+    suspend fun demoReset() = lock.withLock {
+        save(freshState())
+        synchronized(jobs) { jobs.clear() }
+    }
+
     // ----- privacy -----
 
     override suspend fun exportData(body: Empty): JobEnvelope =
