@@ -1,0 +1,111 @@
+package com.raviga.downwork.ui.settings
+
+import android.content.Context
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.raviga.downwork.data.local.DebugFlags
+import com.raviga.downwork.push.Notifications
+import com.raviga.downwork.ui.LocalAppContainer
+import com.raviga.downwork.ui.components.DwRow
+import com.raviga.downwork.ui.components.DwTopBar
+import com.raviga.downwork.ui.components.Hairline
+import com.raviga.downwork.ui.components.ScreenScaffold
+import com.raviga.downwork.ui.nav.Routes
+import com.raviga.downwork.ui.openLink
+import com.raviga.downwork.ui.theme.Dw
+import com.raviga.downwork.ui.theme.DwType
+import com.raviga.downwork.ui.theme.Ink
+
+@Composable
+fun SettingsScreen(nav: NavController) {
+    val container = LocalAppContainer.current
+    val vm: SettingsViewModel = viewModel { SettingsViewModel(container) }
+    val state by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val legal = state.config.legal
+    val github = state.me?.deliveryTargets?.githubUsername.orEmpty()
+    val aws = state.me?.deliveryTargets?.aws
+
+    ScreenScaffold(topBar = { DwTopBar(onBack = { nav.popBackStack() }) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            Text("Settings", style = DwType.title, color = Ink.ink, modifier = Modifier.padding(horizontal = Dw.gutter).padding(top = 8.dp, bottom = 20.dp))
+            DwRow(
+                title = "Delivery targets",
+                subtitle = buildString {
+                    append(if (github.isBlank()) "No GitHub username yet" else "GitHub @$github")
+                    if (aws != null) append(", AWS ${if (aws.verified) "connected" else "not verified"}")
+                },
+                onClick = { nav.navigate(Routes.DELIVERY_TARGETS) },
+            )
+            DwRow(
+                title = "Notifications",
+                subtitle = if (Notifications.canPost(context) && vm.pushConfigured) "On" else if (!vm.pushConfigured) "Not set up on this build" else "Off",
+                onClick = { nav.navigate(Routes.NOTIFICATIONS) },
+            )
+            DwRow(title = "Move to another phone", subtitle = "Recovery key", onClick = { nav.navigate(Routes.RECOVERY) })
+            DwRow(
+                title = "Privacy and data",
+                subtitle = "AI processing, download or delete your data, grievance officer",
+                onClick = { nav.navigate(Routes.PRIVACY) },
+            )
+            DwRow(title = "Privacy policy", onClick = { openLink(context, legal.privacyUrl) }, chevron = false)
+            DwRow(title = "Terms of service", onClick = { openLink(context, legal.termsUrl) }, chevron = false)
+            if (vm.isDebug) DebugBackendRow(context, vm.isDemo)
+            Spacer(Modifier.height(24.dp))
+            Column(Modifier.padding(horizontal = Dw.gutter)) {
+                Text("DownWork ${vm.versionName}", style = DwType.caption, color = Ink.graphite)
+                Text(legal.companyName, style = DwType.caption, color = Ink.graphite)
+                if (legal.companyAddress.isNotBlank()) Text(legal.companyAddress, style = DwType.caption, color = Ink.graphite)
+                if (legal.supportEmail.isNotBlank()) Text(legal.supportEmail, style = DwType.caption, color = Ink.graphite)
+                state.me?.clientId?.let { Text("Client $it", style = DwType.caption, color = Ink.ash) }
+                if (vm.isDemo) Text("Demo backend on this phone", style = DwType.caption, color = Ink.ash)
+            }
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+/** Debug builds only: flip between the dev API and the in-app demo backend. Takes effect on next launch. */
+@Composable
+private fun DebugBackendRow(context: Context, isDemo: Boolean) {
+    var useDemo by remember { mutableStateOf(DebugFlags.useDemoBackend(context)) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Dw.gutter, vertical = Dw.rowPadding), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Demo backend (debug)", style = DwType.body, color = Ink.ink)
+                Text(
+                    if (useDemo != isDemo) "Restart the app to apply" else if (isDemo) "Using the in-app demo backend" else "Using the DownWork dev API",
+                    style = DwType.secondary, color = if (useDemo != isDemo) Ink.amber else Ink.graphite,
+                )
+            }
+            Switch(
+                checked = useDemo,
+                onCheckedChange = { useDemo = it; DebugFlags.setUseDemoBackend(context, it) },
+                colors = SwitchDefaults.colors(checkedThumbColor = Ink.paper, checkedTrackColor = Ink.cobalt, uncheckedThumbColor = Ink.paper, uncheckedTrackColor = Ink.ash, uncheckedBorderColor = Ink.ash),
+            )
+        }
+        Hairline(Modifier.padding(horizontal = Dw.gutter))
+    }
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only what the XML theme and launcher need; Compose tokens live in ui/theme/Color.kt -->
+    <color name="paper">#FFFFFFFF</color>
+    <color name="ink">#FF000000</color>
+    <color name="accent">#FF1B3FE0</color>
+</resources>

@@ -1,0 +1,106 @@
+package com.raviga.downwork.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import com.raviga.downwork.data.api.Milestone
+import com.raviga.downwork.ui.theme.Dw
+import com.raviga.downwork.ui.theme.DwType
+import com.raviga.downwork.ui.theme.Ink
+import com.raviga.downwork.util.Time
+
+/**
+ * Submitted, Reviewed, Approved, Building, Delivered, Accepted as a vertical
+ * sequence: done nodes in ink, the current one in cobalt, the rest outlined.
+ */
+@Composable
+fun TimelineView(
+    milestones: List<Milestone>,
+    note: String,
+    modifier: Modifier = Modifier,
+    estimatedDeliveryDate: String? = null,
+) {
+    Column(modifier.fillMaxWidth()) {
+        milestones.forEachIndexed { index, m ->
+            val last = index == milestones.lastIndex
+            Row(Modifier.fillMaxWidth().height(IntrinsicHeightMin)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
+                    Spacer(Modifier.height(6.dp))
+                    Node(m.state)
+                    if (!last) {
+                        Box(
+                            Modifier
+                                .width(1.dp)
+                                .weight(1f)
+                                .background(if (m.state == "done") Ink.ink else Ink.rule),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f).padding(bottom = if (last) 0.dp else 20.dp)) {
+                    Text(
+                        m.label,
+                        style = DwType.body,
+                        color = when (m.state) {
+                            "upcoming" -> Ink.ash
+                            "current" -> Ink.cobalt
+                            else -> Ink.ink
+                        },
+                    )
+                    val line = when {
+                        m.state == "done" && m.at != null -> Time.shortDate(m.at)
+                        m.state == "current" -> "Now"
+                        m.id == "delivered" && estimatedDeliveryDate != null -> "About ${Time.shortDate(estimatedDeliveryDate)}"
+                        m.id == "delivered" -> "Date set after approval"
+                        else -> null
+                    }
+                    if (line != null) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(line, style = DwType.caption, color = if (m.state == "current") Ink.cobalt else Ink.graphite)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(note, style = DwType.caption, color = Ink.graphite)
+    }
+}
+
+private val IntrinsicHeightMin = androidx.compose.foundation.layout.IntrinsicSize.Min
+
+@Composable
+private fun Node(state: String) {
+    when (state) {
+        "done" -> Box(Modifier.size(10.dp).clip(CircleShape).background(Ink.ink))
+        "current" -> Box(Modifier.size(10.dp).clip(CircleShape).background(Ink.cobalt))
+        else -> Box(Modifier.size(10.dp).clip(CircleShape).border(1.dp, Ink.rule, CircleShape).background(Ink.paper))
+    }
+}
+
+/** "What happens next" and similar: numbered only because the content is a sequence. */
+@Composable
+fun NumberedSteps(steps: List<String>, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        steps.forEachIndexed { i, step ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("${i + 1}", style = DwType.body, color = Ink.graphite, modifier = Modifier.width(24.dp))
+                Text(step, style = DwType.body, color = Ink.ink, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}

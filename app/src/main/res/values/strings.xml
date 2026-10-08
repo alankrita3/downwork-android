@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DownWork</string>
+    <string name="notification_channel_projects" translatable="false">projects</string>
+    <string name="notification_channel_projects_name">Project updates</string>
+    <string name="notification_channel_projects_description">Review decisions, delivery and comments from the DownWork team</string>
+</resources>

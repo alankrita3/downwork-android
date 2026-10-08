@@ -1,0 +1,1 @@
+{"error":{"code":"invalid_state","message":"Only a delivered project can be accepted","details":{"status":"revision_requested"}}}

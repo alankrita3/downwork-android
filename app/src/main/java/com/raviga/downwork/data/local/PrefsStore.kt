@@ -1,0 +1,81 @@
+package com.raviga.downwork.data.local
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "prefs")
+
+/** Small, non-secret flags and caches that shape the first-run and settings flows. */
+data class Prefs(
+    val welcomeDone: Boolean = false,
+    val termsVersionAccepted: String? = null,
+    val aiVersionAccepted: String? = null,
+    val aiProcessingAllowed: Boolean = false,
+    val notificationsAsked: Boolean = false,
+    val githubUsername: String = "",
+    val awsAccountId: String = "",
+    val pushToken: String? = null,
+    val pushTokenSynced: Boolean = false,
+    val recoveryKeyShown: Boolean = false,
+)
+
+class PrefsStore(private val context: Context) {
+
+    val prefs: Flow<Prefs> = context.dataStore.data.map { p ->
+        Prefs(
+            welcomeDone = p[WELCOME_DONE] ?: false,
+            termsVersionAccepted = p[TERMS_VERSION],
+            aiVersionAccepted = p[AI_VERSION],
+            aiProcessingAllowed = p[AI_ALLOWED] ?: false,
+            notificationsAsked = p[NOTIFICATIONS_ASKED] ?: false,
+            githubUsername = p[GITHUB] ?: "",
+            awsAccountId = p[AWS] ?: "",
+            pushToken = p[PUSH_TOKEN],
+            pushTokenSynced = p[PUSH_SYNCED] ?: false,
+            recoveryKeyShown = p[RECOVERY_SHOWN] ?: false,
+        )
+    }
+
+    suspend fun current(): Prefs = prefs.first()
+
+    suspend fun setWelcomeDone() = context.dataStore.edit { it[WELCOME_DONE] = true }
+    suspend fun setTermsAccepted(version: String) = context.dataStore.edit { it[TERMS_VERSION] = version }
+    suspend fun setAiAccepted(version: String, allowed: Boolean) = context.dataStore.edit {
+        it[AI_VERSION] = version
+        it[AI_ALLOWED] = allowed
+    }
+    suspend fun setAiProcessingAllowed(allowed: Boolean) = context.dataStore.edit { it[AI_ALLOWED] = allowed }
+    suspend fun setNotificationsAsked() = context.dataStore.edit { it[NOTIFICATIONS_ASKED] = true }
+    suspend fun setDeliveryTargets(github: String?, aws: String?) = context.dataStore.edit {
+        if (github != null) it[GITHUB] = github
+        if (aws != null) it[AWS] = aws
+    }
+    suspend fun setPushToken(token: String, synced: Boolean) = context.dataStore.edit {
+        it[PUSH_TOKEN] = token
+        it[PUSH_SYNCED] = synced
+    }
+    suspend fun setPushSynced(synced: Boolean) = context.dataStore.edit { it[PUSH_SYNCED] = synced }
+    suspend fun setRecoveryKeyShown() = context.dataStore.edit { it[RECOVERY_SHOWN] = true }
+    suspend fun clear() = context.dataStore.edit { it.clear() }
+
+    private companion object {
+        val WELCOME_DONE = booleanPreferencesKey("welcome_done")
+        val TERMS_VERSION = stringPreferencesKey("terms_version_accepted")
+        val AI_VERSION = stringPreferencesKey("ai_version_accepted")
+        val AI_ALLOWED = booleanPreferencesKey("ai_processing_allowed")
+        val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
+        val GITHUB = stringPreferencesKey("github_username")
+        val AWS = stringPreferencesKey("aws_account_id")
+        val PUSH_TOKEN = stringPreferencesKey("push_token")
+        val PUSH_SYNCED = booleanPreferencesKey("push_token_synced")
+        val RECOVERY_SHOWN = booleanPreferencesKey("recovery_key_shown")
+    }
+}

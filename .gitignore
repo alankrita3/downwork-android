@@ -1,0 +1,38 @@
+# Android / Gradle build output
+*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+release/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+.kotlin/
+
+# Local configuration
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.hprof
+.navigation/
+
+# Signing & secrets
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+secrets.properties
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
