@@ -40,13 +40,14 @@ fun DwRow(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     hairline: Boolean = true,
+    horizontalPadding: androidx.compose.ui.unit.Dp = Dw.gutter,
 ) {
     Column(modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .padding(horizontal = Dw.gutter, vertical = Dw.rowPadding),
+                .padding(horizontal = horizontalPadding, vertical = Dw.rowPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (leading != null) {
@@ -69,7 +70,7 @@ fun DwRow(
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(20.dp))
             }
         }
-        if (hairline) Hairline(Modifier.padding(horizontal = Dw.gutter))
+        if (hairline) Hairline(Modifier.padding(horizontal = horizontalPadding))
     }
 }
 

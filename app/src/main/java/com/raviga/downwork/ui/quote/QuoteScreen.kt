@@ -144,7 +144,9 @@ fun QuoteScreen(nav: NavController, projectId: String) {
 
             quote.complexity?.drivers?.takeIf { it.isNotEmpty() }?.let { drivers ->
                 Spacer(Modifier.height(16.dp))
-                Text("Driven by " + drivers.joinToString(", ").lowercase().replaceFirstChar { it.lowercase() } + ".", style = DwType.caption, color = Ink.graphite)
+                Text("What drives the size", style = DwType.secondary, color = Ink.graphite)
+                Spacer(Modifier.height(4.dp))
+                BodyText(drivers.joinToString("\n") { "- " + it.trim().trimEnd('.') }, style = DwType.secondary, color = Ink.graphite)
             }
 
             Spacer(Modifier.height(Dw.sectionGap))
@@ -185,7 +187,7 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                 },
                 subtitleColor = if (aws?.verified == true) Ink.moss else Ink.graphite,
                 onClick = { nav.navigate(Routes.CONNECT_AWS) },
-                modifier = Modifier.padding(horizontal = 0.dp),
+                horizontalPadding = 0.dp,
             )
             Spacer(Modifier.height(32.dp))
         }

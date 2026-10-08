@@ -41,9 +41,9 @@ object Routes {
     const val RECOVERY = "settings/recovery"
     const val NOTIFICATIONS = "settings/notifications"
 
-    /** Where a project opens from the list, by status. */
-    fun forProject(projectId: String, status: String, hasDocument: Boolean): String = when (status) {
-        "draft" -> if (hasDocument) document(projectId) else capture(projectId)
+    /** Where a project opens from the list, by status. Drafts open the document screen, which handles "no brief yet". */
+    fun forProject(projectId: String, status: String, hasDocument: Boolean = true): String = when (status) {
+        "draft" -> document(projectId)
         "submitted", "changes_requested", "approved", "rejected", "cancelled" -> status(projectId)
         "delivered", "revision_requested", "accepted" -> delivery(projectId)
         else -> status(projectId)

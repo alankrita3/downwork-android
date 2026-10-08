@@ -77,6 +77,9 @@ class CaptureViewModel(
 
     private fun needsConsent(): Boolean = container.session.needsAiConsent(container.session.me.value)
 
+    /** The screen has navigated to the consent flow; do not ask again on re-entry. */
+    fun consentRequested() = _state.update { it.copy(needsConsent = false) }
+
     /** Called after the AI consent screen returns granted. */
     fun consentGranted() {
         _state.update { it.copy(needsConsent = false) }

@@ -79,7 +79,10 @@ fun CaptureScreen(nav: NavController, projectId: String, mode: String) {
         }
     }
     LaunchedEffect(state.needsConsent) {
-        if (state.needsConsent) nav.navigate(Routes.AI_CONSENT)
+        if (state.needsConsent) {
+            vm.consentRequested()
+            nav.navigate(Routes.AI_CONSENT)
+        }
     }
 
     LaunchedEffect(state.done) {

@@ -122,10 +122,7 @@ fun HomeScreen(nav: NavController) {
                             title = s.title.ifBlank { "Untitled project" },
                             subtitle = subtitle,
                             subtitleColor = if (s.unreadComments > 0) Ink.cobalt else Ink.graphite,
-                            onClick = {
-                                val hasDoc = s.status != ProjectStatus.DRAFT || s.credits != null || container.projects.cachedProject(s.id)?.document != null
-                                nav.navigate(Routes.forProject(s.id, s.status, hasDoc))
-                            },
+                            onClick = { nav.navigate(Routes.forProject(s.id, s.status)) },
                             chevron = false,
                             trailing = { StatusMark(s.status) },
                         )
