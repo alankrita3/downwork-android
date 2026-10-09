@@ -448,7 +448,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 throw policyRefusal("This brief describes software we can't build under our Acceptable use policy.")
             }
             val parts = BriefWriter.quote(doc, config)
-            val maxWeeks = parts.workingDays / 5
+            val maxWeeks = ceil(parts.workingDays / 5.0).toInt().coerceAtLeast(1)
             val hash = hashOf(body.document)
             val quote = Quote(
                 id = "qt_" + UUID.randomUUID().toString().take(8),
@@ -458,7 +458,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 inr = parts.credits * config.credits.creditValueInr,
                 bracketId = parts.bracketId,
                 estimatedWorkingDays = parts.workingDays,
-                timeline = QuoteTimeline(minWeeks = ceil(maxWeeks * 0.6).toInt().coerceAtLeast(1), maxWeeks = maxWeeks),
+                timeline = QuoteTimeline(minWeeks = ceil(maxWeeks * 0.5).toInt().coerceAtLeast(1), maxWeeks = maxWeeks),
                 complexity = Complexity(parts.score, parts.drivers),
                 breakdown = parts.breakdown.map { BreakdownItem(it.first, it.second) },
                 assumptions = parts.assumptions,

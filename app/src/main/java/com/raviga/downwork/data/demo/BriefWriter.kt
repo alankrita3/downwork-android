@@ -280,9 +280,8 @@ object BriefWriter {
             credits,
         )
         val bracket = config.quote.brackets.firstOrNull { b -> credits >= b.minCredits && (b.maxCredits == null || credits <= b.maxCredits) }
-        val aiDays = ceil(personDays * 0.6).toInt()
-        val weeks = ceil(ceil(aiDays * 1.5) / 5.0).toInt()
-        val days = (weeks * 5).coerceAtLeast(10)
+        // Founder, 2026-10-09: a typical project is ready in 1 to 2 weeks (same pace as the iOS mock).
+        val days = ceil(credits / 3.0).toInt().coerceAtLeast(1)
         val score = (personDays / 40.0 * 10).roundToInt().coerceIn(1, 10)
         val assumptions = buildList {
             add("Design follows DownWork's standard minimal interface unless you provide brand guidelines")

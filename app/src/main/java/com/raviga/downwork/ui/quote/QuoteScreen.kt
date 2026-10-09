@@ -173,12 +173,7 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                 Spacer(Modifier.height(20.dp))
             }
 
-            val tl = quote.timeline
-            val weeks = when {
-                tl != null && tl.minWeeks > 0 && tl.maxWeeks > tl.minWeeks -> "${tl.minWeeks} to ${tl.maxWeeks} weeks"
-                tl != null && tl.maxWeeks > 0 -> "about ${tl.maxWeeks} weeks"
-                else -> "about ${(quote.estimatedWorkingDays / 5).coerceAtLeast(2)} weeks"
-            }
+            val weeks = timelineText(quote.timeline?.minWeeks ?: 0, quote.timeline?.maxWeeks ?: 0, quote.estimatedWorkingDays)
             Row {
                 Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Ink.teal, modifier = Modifier.padding(top = 3.dp).size(17.dp))
                 Spacer(Modifier.width(10.dp))
@@ -328,6 +323,16 @@ private fun joinWords(words: List<String>): String = when (words.size) {
     0 -> ""
     1 -> words[0]
     else -> words.dropLast(1).joinToString(", ") + " and " + words.last()
+}
+
+/** "1 to 2 weeks", "about 3 weeks", "about a week" (never "about 1 weeks"). */
+internal fun timelineText(minWeeks: Int, maxWeeks: Int, workingDays: Int): String {
+    fun about(weeks: Int) = if (weeks <= 1) "about a week" else "about $weeks weeks"
+    return when {
+        minWeeks > 0 && maxWeeks > minWeeks -> "$minWeeks to $maxWeeks weeks"
+        maxWeeks > 0 -> about(maxWeeks)
+        else -> about((workingDays + 4) / 5)
+    }
 }
 
 /** "What happens next" (same wording as iOS). */

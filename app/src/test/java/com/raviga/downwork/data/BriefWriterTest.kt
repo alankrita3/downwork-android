@@ -35,11 +35,11 @@ class BriefWriterTest {
         val draft = BriefWriter.write(listOf(salon))
         val doc = Document(version = 1, title = draft.title, sections = draft.sections)
         val q = BriefWriter.quote(doc, DemoApi.demoConfig())
-        assertTrue(q.credits >= 15)
-        assertTrue(q.workingDays >= 10)
-        assertEquals(0, q.workingDays % 5)
+        // Contract v0.7 pricing (x0.38, at least 5) and the founder's pace: days = ceil(credits / 3).
+        assertTrue(q.credits >= 5)
+        assertEquals((q.credits + 2) / 3, q.workingDays)
         assertTrue(q.bracketId != null)
-        assertTrue(q.breakdown.sumOf { it.second } == q.credits || q.credits == 15)
+        assertEquals(q.credits, q.breakdown.sumOf { it.second })
     }
 
     @Test
