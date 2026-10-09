@@ -16,6 +16,7 @@ where the platform differs. The fonts and pictures are the same files iOS ships.
 | chips (plain / teal / marigold, dot or icon) | `Chip`, `ChipRow` (FlowRow) in `ui/components/Workshop.kt` |
 | pictures | `res/drawable-nodpi/illo_*.webp` (the iOS `Illo*.imageset` files through `cwebp -q 88 -alpha_q 100 -m 6`, about 0.8 MB for all eleven); `Picture` enum, `Illustration` (cropped around a focus point), `HeroIllustration` (full bleed, Welcome), `SpotIllustration` (the transparent ones) |
 | hairline 1px | `Ra.hairline = 1.dp` |
+| app icon (interim, until the founder picks a logo): Bricolage Bold "R" in ink, teal full stop on the baseline, on paper | `res/drawable/ic_launcher_foreground.xml` (adaptive, also the monochrome layer) on `ic_launcher_background.xml`, `ic_splash_mark.xml`, and `ic_notification.xml` (the R alone, white); vector paths from `docs/icon/make_mark.py`, which also draws the 1024 PNG iOS uses |
 
 Light appearance only: no `values-night`, `enableEdgeToEdge` with light system bars, no dynamic colour.
 Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper` so its white tiles read.
