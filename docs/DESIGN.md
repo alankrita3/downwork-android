@@ -1,6 +1,6 @@
-# DownWork Android — design notes
+# Raviga Android — design notes
 
-The design system is owned by iOS: `DownWork iOS/docs/DESIGN.md` ("Workshop", direction A, approved by the
+The design system is owned by iOS: `Raviga iOS/docs/DESIGN.md` ("Workshop", direction A, approved by the
 founder on 2026-10-09; it replaced "Wet ink, dry ink"). This file records only how Android mirrors it and
 where the platform differs. The fonts and pictures are the same files iOS ships.
 
@@ -9,13 +9,13 @@ where the platform differs. The fonts and pictures are the same files iOS ships.
 | Design | Android |
 |---|---|
 | colours (paper `#FBFAF7`, surface, ink, graphite, ash, rule, ruleStrong, wash, teal, tealWash/tealInk, marigold, marigoldWash/marigoldInk, moss, amber, brick) | `ui/theme/Color.kt` (`Ink` object); also mapped onto the Material 3 scheme in `Theme.kt`. `res/values/colors.xml` carries paper, ink and teal for the splash and launcher |
-| type scale (hero 38, display 48, title 32, heading 21, dictation 26, body 17/25, bodyMedium 17 semibold, secondary 15/21, button 17 semibold, caption 13/18, chip 13 bold) with the doc's tracking | `ui/theme/Type.kt` (`DwType`), all in sp so font scaling works; `includeFontPadding = false` |
+| type scale (hero 38, display 48, title 32, heading 21, dictation 26, body 17/25, bodyMedium 17 semibold, secondary 15/21, button 17 semibold, caption 13/18, chip 13 bold) with the doc's tracking | `ui/theme/Type.kt` (`RaType`), all in sp so font scaling works; `includeFontPadding = false` |
 | Bricolage Grotesque (Bold opsz 48, SemiBold opsz 24, Medium opsz 32) and Figtree (400/500/600/700, Italic 400) | `res/font/bricolage_*.ttf`, `res/font/figtree_*.ttf`: the static instances iOS made, OFL; licence in `assets/licenses/OFL.txt`, shown under Settings > Fonts |
-| 8pt grid, 20pt gutter (24 on Welcome), 12pt between tiles | `ui/theme/Dimens.kt` (`Dw`), in dp |
-| buttons 56 tall radius 18; fields surface radius 16 with a rule border (teal 1.5 when focused); tiles radius 24; pictures radius 20 (24 for headers, 18 for thumbnails, 32 bottom corners on Welcome); mic 72; status mark 8 | `Dw.*`; `PrimaryButton`/`SecondaryButton`/`TertiaryButton`, `DwTextField`, `BoxedEditor`, `Modifier.tile()` |
+| 8pt grid, 20pt gutter (24 on Welcome), 12pt between tiles | `ui/theme/Dimens.kt` (`Ra`), in dp |
+| buttons 56 tall radius 18; fields surface radius 16 with a rule border (teal 1.5 when focused); tiles radius 24; pictures radius 20 (24 for headers, 18 for thumbnails, 32 bottom corners on Welcome); mic 72; status mark 8 | `Ra.*`; `PrimaryButton`/`SecondaryButton`/`TertiaryButton`, `RaTextField`, `BoxedEditor`, `Modifier.tile()` |
 | chips (plain / teal / marigold, dot or icon) | `Chip`, `ChipRow` (FlowRow) in `ui/components/Workshop.kt` |
 | pictures | `res/drawable-nodpi/illo_*.webp` (the iOS `Illo*.imageset` files through `cwebp -q 88 -alpha_q 100 -m 6`, about 0.8 MB for all eleven); `Picture` enum, `Illustration` (cropped around a focus point), `HeroIllustration` (full bleed, Welcome), `SpotIllustration` (the transparent ones) |
-| hairline 1px | `Dw.hairline = 1.dp` |
+| hairline 1px | `Ra.hairline = 1.dp` |
 
 Light appearance only: no `values-night`, `enableEdgeToEdge` with light system bars, no dynamic colour.
 Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper` so its white tiles read.
@@ -44,7 +44,7 @@ Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper`
 | Home | `home` | `HomeScreen` (project tiles, credits pill with a marigold dot) |
 | Describe chooser (Speak / Type / Upload a document) | bottom sheet on Home and Document | `DescribeChooserSheet` / `DescribeChoices` |
 | Capture, Transcript / "Here's what we read", Choices, Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (phases in one screen so the dictation state survives the transition; text tabs Speak, Type, Upload; accent picker on Speak) |
-| Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` (the server's L1 list: `DownWork Backend/src/downwork/screening/secrets.py`) |
+| Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` (the server's L1 list: `Raviga Backend/src/raviga/screening/secrets.py`) |
 | AIConsent | `ai_consent` | `AiConsentScreen` (returns `ai_consent_granted` through the back stack entry) |
 | Document | `document/{projectId}?reveal=` | `DocumentScreen` (square plus beside "Get a quote" for Add more) |
 | SectionEditor, Regenerate | `section/{projectId}/{sectionId}` + bottom sheet | `SectionEditorScreen`, `RegenerateSheet` |
@@ -152,6 +152,6 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   If you think this is a mistake, write to <supportEmail>." (the appeal is dropped when the server's
   reason already carries it). Policy refusals elsewhere show the server's message as is: the backend
   owns the "If you think this is a mistake…" sentence and the app never appends it.
-- Offline: "Couldn't reach DownWork. Check your connection and try again."
+- Offline: "Couldn't reach Raviga. Check your connection and try again."
 - Timeline footer: "Projects are usually delivered well ahead of this date." (the quote screen
   shows `config.quote.timelineNote` from the backend instead).

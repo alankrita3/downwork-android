@@ -1,1 +1,1 @@
-{"error":{"code":"aws_role_not_ready","message":"The DownWorkDeployRole role could not be assumed yet","details":{"reason":"AccessDenied"}}}
+{"error":{"code":"aws_role_not_ready","message":"The RavigaDeployRole role could not be assumed yet","details":{"reason":"AccessDenied"}}}

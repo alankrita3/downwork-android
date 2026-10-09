@@ -1,4 +1,4 @@
-# DownWork Android — handoff: what only the founder can plug in
+# Raviga Android — handoff: what only the founder can plug in
 
 Everything below is a placeholder today. The app builds, runs and demos without any of it: with no
 backend URL it uses the in-app demo backend, and the debug build already points at the backend's dev
@@ -9,16 +9,17 @@ are the same credential used by more than one repo.
 
 | # | Item | Where it goes | Status |
 |---|---|---|---|
-| 1 | **Play Console app** for `com.raviga.downwork` (Raviga Apps Private Limited), name "DownWork" | Play Console → Create app | not created |
+| 1 | **Play Console app** for `com.raviga.app` (Raviga Apps Private Limited), name "Raviga" | Play Console → Create app | not created |
 | 2 | **Four consumable in-app products**: `credits_10`, `credits_25`, `credits_50`, `credits_100` with USD base prices ($99.99 / $249.99 / $499.99 / $999.99, from `/config` `priceHintUsd`; let Play convert to local currencies; the backend's `/config` carries the credit amounts) (shared with the App Store) | Play Console → Monetise → In-app products | not created |
 | 3 | **RevenueCat** project with the Android app, the Google public SDK key `goog_…`, Play service-account credentials, and the webhook URL + shared secret from the backend (shared) | `secrets.properties` → `REVENUECAT_API_KEY`; backend SSM | missing |
-| 4 | **Firebase project** with the Android app `com.raviga.downwork` (and `com.raviga.downwork.debug` for debug builds) added; download `google-services.json`; give the backend the service-account JSON for FCM (shared) | `app/google-services.json` (gitignored) | missing |
+| 4 | **Firebase project** with the Android app `com.raviga.app` (and `com.raviga.app.debug` for debug builds) added; download `google-services.json`; give the backend the service-account JSON for FCM (shared) | `app/google-services.json` (gitignored) | missing |
 | 5 | **Upload key** for Play App Signing: a keystore plus `keystore.properties` with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` | `keystore.properties` (gitignored) | missing; release builds are unsigned until then |
 | 6 | **Production API URL** once the backend deploys prod | `secrets.properties` → `API_BASE_URL` | placeholder |
 | 7 | **Legal pages**: the backend now serves Terms and Privacy itself (`/v1/legal/terms`, `/v1/legal/privacy`) and `/config` points at them; the app opens whatever `/config` says. Read them once before launch | backend | served; needs your read-through |
 | 8 | **Grievance officer** (you, membersupport@miraquill.com, 15-day response) and support email are live in `/config`. The registered company address is still a stand-in ("Raviga Apps Private Limited, India") | backend `/config` → `legal.companyAddress`, `legal.grievance.address` | address to confirm |
 | 9 | **Play Data safety form** and the microphone / notifications declarations; the app collects voice (processed by OpenAI), project text, device identifier, purchase history | Play Console → App content | to fill |
-| 10 | **AWS role policy** for `DownWorkDeployRole` (currently AdministratorAccess per the backend contract); the Connect AWS screen describes the role in plain words | backend CloudFormation template | to decide |
+| 10 | **AWS role policy** for `RavigaDeployRole` (currently AdministratorAccess per the backend contract); the Connect AWS screen describes the role in plain words | backend CloudFormation template | to decide |
+| 11 | **Anything you registered under the old app id** (the old name after `com.raviga.`): items 1, 3 and 4 were not created as far as this repo knows, but if any were, create them again for `com.raviga.app`. App ids can't be renamed in Play Console or Firebase | Play Console, Firebase, RevenueCat | check |
 
 ## Verified against the backend dev stage (2026-10-09)
 
@@ -37,7 +38,7 @@ refused-project block and the demo backend's equivalents were exercised in demo 
 
 Contract v0.6 (local-first) was run on dev too: re-consent to the 2026-10-10 terms → typed notes with an
 AWS key kept on purpose → `/ai/draft` (server removed it, notice shown, local note redacted) → `/quotes` (104)
-→ `POST /projects` (DW-DWPJBD, the first time the brief reached the server) → team requested changes → edited
+→ `POST /projects` (RA-DWPJBD, the first time the brief reached the server) → team requested changes → edited
 on the phone → re-quoted (95) → resubmitted (9 credits back) → approved → delivered → accepted → the server
 deleted the brief and title, and the phone's copy is still readable. Drafts on disk were checked to be
 ciphertext. A PDF and a Word file were read on the phone, in debug and in the R8 release build.
@@ -65,14 +66,16 @@ PDF (ML Kit's model comes from Play services on first use), store purchases (no 
 - Notifications permission is asked once on the home screen (Android 13+). Change in `HomeScreen.kt`.
 - Light appearance only. The "Workshop" design you approved on iOS (Bricolage Grotesque and Figtree, warm
   white, teal and marigold, clay pictures), built from the same font and picture files. The launcher
-  icon and splash keep the old mark in the new colours; a new icon is yours to commission.
+  icon, splash mark and notification icon are still the old name's "D" (with a teal dot), in
+  `res/drawable/ic_launcher_foreground.xml`, `ic_splash_mark.xml` and `ic_notification.xml`; a new icon
+  is yours to pick. None of the clay pictures show the old name.
 - Speech is English only (US, UK, India or Australia accent, from the phone's region), as you asked.
 - `minSdk 26` (Android 8.0, covers ~97% of Indian Android devices); `targetSdk 36` as Play requires.
 
 ## Risks to know before store review
 
 - **Google Play's payments policy** (like App Store guideline 3.1.3(e)): in-app billing is meant for digital
-  content used inside the app. DownWork sells a real-world service delivered outside the app. Review may
+  content used inside the app. Raviga sells a real-world service delivered outside the app. Review may
   push back. Options: position credits as a prepaid digital balance consumed in-app for AI drafting and
   quoting (true today), or move project payment to an external invoice. Decide before submission; no code
   depends on it beyond the Credits screen copy.
@@ -84,7 +87,7 @@ PDF (ML Kit's model comes from Play services on first use), store purchases (no 
 ## How to run it tomorrow
 
 1. Open the folder in Android Studio, or from a terminal: `./gradlew assembleDebug`.
-2. Plug in the OnePlus (or start the `DownWork_API34` emulator; the `Pixel_6_API_34` one has a pattern
+2. Plug in the OnePlus (or start the `Raviga_API34` emulator; the `Pixel_6_API_34` one has a pattern
    lock) and press Run, or `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 3. The debug build talks to the backend's dev stage (`secrets.properties`, already on this Mac). Drafting
    uses OpenAI; credits on dev need the backend's admin flow until RevenueCat is connected.

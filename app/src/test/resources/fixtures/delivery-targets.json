@@ -1,1 +1,1 @@
-{"githubUsername":"","aws":{"accountId":"123456789012","externalId":"dw-ext-783310226221cf74ff6ab23095c7d119","roleName":"DownWorkDeployRole","roleArn":"arn:aws:iam::123456789012:role/DownWorkDeployRole","verified":false,"verifiedAt":null,"lastError":null}}
+{"githubUsername":"","aws":{"accountId":"123456789012","externalId":"ra-ext-783310226221cf74ff6ab23095c7d119","roleName":"RavigaDeployRole","roleArn":"arn:aws:iam::123456789012:role/RavigaDeployRole","verified":false,"verifiedAt":null,"lastError":null}}

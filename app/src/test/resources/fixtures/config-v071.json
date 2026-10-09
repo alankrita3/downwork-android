@@ -147,7 +147,7 @@
     },
     "delivery": {
         "awsTrustedAccountId": "521901166785",
-        "awsRoleName": "DownWorkDeployRole",
+        "awsRoleName": "RavigaDeployRole",
         "awsRegion": "ap-south-1"
     },
     "legal": {

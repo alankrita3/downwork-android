@@ -3,9 +3,9 @@
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
 -keepclasseswithmembers class kotlinx.serialization.json.** { kotlinx.serialization.KSerializer serializer(...); }
--keep,includedescriptorclasses class com.raviga.downwork.**$$serializer { *; }
--keepclassmembers class com.raviga.downwork.** { *** Companion; }
--keepclasseswithmembers class com.raviga.downwork.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep,includedescriptorclasses class com.raviga.app.**$$serializer { *; }
+-keepclassmembers class com.raviga.app.** { *** Companion; }
+-keepclasseswithmembers class com.raviga.app.** { kotlinx.serialization.KSerializer serializer(...); }
 
 # Retrofit / OkHttp
 -dontwarn org.codehaus.mojo.animal_sniffer.*

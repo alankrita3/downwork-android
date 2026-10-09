@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DownWork"
+rootProject.name = "Raviga"
 include(":app")

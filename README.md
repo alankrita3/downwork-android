@@ -1,6 +1,6 @@
-# DownWork — Android
+# Raviga — Android
 
-Android client for DownWork: describe the software you want by voice or text, get a
+Android client for Raviga: describe the software you want by voice or text, get a
 proper requirements brief written by AI, edit it, get a quote in credits, submit, and
 receive the finished code as a GitHub repository (optionally deployed to your AWS account).
 
@@ -8,8 +8,8 @@ Operator: Raviga Apps Private Limited, India.
 
 ## Related repositories
 
-- [downwork-ios](https://github.com/alankrita3/downwork-ios) — iOS client (owns the shared design system)
-- [downwork-backend](https://github.com/alankrita3/downwork-backend) — API, AI, email flow (owns the API contract)
+- [raviga-ios](https://github.com/alankrita3/raviga-ios) — iOS client (owns the shared design system)
+- [raviga-backend](https://github.com/alankrita3/raviga-backend) — API, AI, email flow (owns the API contract)
 
 ## Status
 
@@ -25,8 +25,8 @@ process (with a fake review lifecycle), so every screen can be exercised on any 
 ## Getting started
 
 ```bash
-git clone https://github.com/alankrita3/downwork-android.git
-cd downwork-android
+git clone https://github.com/alankrita3/raviga-android.git
+cd raviga-android
 cp secrets.properties.example secrets.properties   # fill in what you have; all keys optional
 ./gradlew assembleDebug
 ```
@@ -60,7 +60,7 @@ emulator with API 26+.
 Kotlin, Jetpack Compose, Material 3, single activity, hand-wired dependencies.
 
 ```
-com.raviga.downwork
+com.raviga.app
 ├── data/api        Retrofit interface + DTOs for api-contract.md v0.7.1, errors, job polling
 ├── data/demo       In-process demo backend (DemoApi) and its heuristic brief writer
 ├── data/drafts     Drafts on the phone: sealed JSON files under a Keystore AES-GCM key
@@ -88,11 +88,11 @@ com.raviga.downwork
   SpeechRecognizer drives the ink line and the on-screen transcript. Phones without an offline
   model are offered typing or upload instead.
 - **Prices** are shown in US dollars (1 credit = $10 from `/config`); packs show Google Play's price.
-- **Design**: "Workshop", mirrored from `DownWork iOS/docs/DESIGN.md` with the same fonts and clay
+- **Design**: "Workshop", mirrored from `Raviga iOS/docs/DESIGN.md` with the same fonts and clay
   pictures; Android notes in `docs/DESIGN.md`.
 
 ## Licences
 
 Bricolage Grotesque and Figtree are used under the SIL Open Font License
 (`LICENSES/BricolageGrotesque-Figtree-OFL.txt`, also shipped in the app under Settings > Fonts).
-The illustrations were made for DownWork with gpt-image-2.5 (prompts in `DownWork iOS/docs/illustrations`).
+The illustrations were made for Raviga with gpt-image-2.5 (prompts in `Raviga iOS/docs/illustrations`).

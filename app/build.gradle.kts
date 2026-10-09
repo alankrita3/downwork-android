@@ -30,11 +30,11 @@ val secrets = Properties().apply {
 fun secret(key: String, default: String): String = secrets.getProperty(key) ?: default
 
 android {
-    namespace = "com.raviga.downwork"
+    namespace = "com.raviga.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.raviga.downwork"
+        applicationId = "com.raviga.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

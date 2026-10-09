@@ -10,7 +10,7 @@
     <uses-permission android:name="com.android.vending.BILLING" />
 
     <application
-        android:name=".DownWorkApp"
+        android:name=".RavigaApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -18,7 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.DownWork"
+        android:theme="@style/Theme.Raviga"
         tools:targetApi="34">
 
         <activity
@@ -27,22 +27,22 @@
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.DownWork.Splash">
+            android:theme="@style/Theme.Raviga.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- downwork://project/{id} from push notifications and the delivery email -->
+            <!-- raviga://project/{id} from push notifications and the delivery email -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="downwork" android:host="project" />
+                <data android:scheme="raviga" android:host="project" />
             </intent-filter>
         </activity>
 
         <service
-            android:name=".push.DownWorkMessagingService"
+            android:name=".push.RavigaMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
