@@ -115,18 +115,22 @@ fun StatusScreen(nav: NavController, projectId: String) {
                     TimelineView(tl.milestones, note = "Projects are usually delivered well ahead of this date.", estimatedDeliveryDate = tl.estimatedDeliveryDate)
                 }
 
-                Spacer(Modifier.height(Dw.sectionGap))
-                SectionHeading("From the team")
-                Spacer(Modifier.height(12.dp))
-                if (state.comments.isEmpty()) {
-                    Text(
-                        if (project.status == ProjectStatus.SUBMITTED) "Nothing yet. We usually reply within a working day." else "No comments.",
-                        style = DwType.body, color = Ink.graphite,
-                    )
-                } else {
-                    state.comments.forEach { CommentBlock(it) }
+                val deletedAt = project.contentDeletedAt
+                // Once closed, the server deleted the brief and its comments: no empty section, just say so.
+                if (deletedAt == null) {
+                    Spacer(Modifier.height(Dw.sectionGap))
+                    SectionHeading("From the team")
+                    Spacer(Modifier.height(12.dp))
+                    if (state.comments.isEmpty()) {
+                        Text(
+                            if (project.status == ProjectStatus.SUBMITTED) "Nothing yet. We usually reply within a working day." else "No comments.",
+                            style = DwType.body, color = Ink.graphite,
+                        )
+                    } else {
+                        state.comments.forEach { CommentBlock(it) }
+                    }
                 }
-                if (ProjectStatus.canComment(project.status)) {
+                if (deletedAt == null && ProjectStatus.canComment(project.status)) {
                     Spacer(Modifier.height(16.dp))
                     DwTextField(value = state.reply, onValueChange = { vm.setReply(it) }, placeholder = "Reply to the team", minLines = 2)
                     Spacer(Modifier.height(4.dp))
@@ -135,6 +139,16 @@ fun StatusScreen(nav: NavController, projectId: String) {
                         InlineAction("Send", enabled = state.reply.isNotBlank() && !state.busy, onClick = { vm.sendReply() })
                     }
                 }
+                Spacer(Modifier.height(Dw.sectionGap))
+                Text(
+                    if (deletedAt != null) {
+                        "We deleted this brief and its comments from our servers on ${Time.shortDate(deletedAt)}." +
+                            if (container.drafts.get(project.id) != null) " Your copy stays on this phone." else ""
+                    } else {
+                        "We keep this brief only to review and build it, and delete it from our servers when you accept the delivery."
+                    },
+                    style = DwType.caption, color = Ink.graphite,
+                )
                 Spacer(Modifier.height(32.dp))
             }
         }

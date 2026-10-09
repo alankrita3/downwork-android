@@ -21,6 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -89,8 +92,25 @@ fun SettingsScreen(nav: NavController) {
                 Text("DownWork ${vm.versionName}", style = DwType.caption, color = Ink.graphite)
                 Text(legal.companyName, style = DwType.caption, color = Ink.graphite)
                 if (legal.companyAddress.isNotBlank()) Text(legal.companyAddress, style = DwType.caption, color = Ink.graphite)
-                if (legal.supportEmail.isNotBlank()) Text(legal.supportEmail, style = DwType.caption, color = Ink.graphite)
-                state.me?.clientId?.let { Text("Client $it", style = DwType.caption, color = Ink.ash) }
+                val clientId = state.me?.clientId
+                if (legal.supportEmail.isNotBlank()) Text(
+                    legal.supportEmail,
+                    style = DwType.caption, color = Ink.cobalt,
+                    modifier = Modifier.clickable {
+                        com.raviga.downwork.ui.emailLink(context, legal.supportEmail, "DownWork support" + (clientId?.let { " ($it)" } ?: ""))
+                    },
+                )
+                // Support asks for this; long-press copies it.
+                clientId?.let { id ->
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    Text(
+                        "Support ID $id",
+                        style = DwType.caption, color = Ink.ash,
+                        modifier = Modifier.pointerInput(id) {
+                            detectTapGestures(onLongPress = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(id)) })
+                        },
+                    )
+                }
                 if (vm.isDemo) Text("Demo backend on this phone", style = DwType.caption, color = Ink.ash)
             }
             Spacer(Modifier.height(32.dp))

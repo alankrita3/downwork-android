@@ -104,7 +104,9 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
             DwTopBar(
                 onBack = { nav.popBackStack() },
                 actions = {
-                    if (draft != null && draft.versions.isNotEmpty()) InlineAction("Versions", onClick = { nav.navigate(Routes.versions(draftId)) })
+                    if (draft != null && draft.versions.isNotEmpty() && project?.contentDeletedAt == null) {
+                        InlineAction("Versions", onClick = { nav.navigate(Routes.versions(draftId)) })
+                    }
                     if (state.isLocalDraft && !rejected) InlineAction("Delete", color = Ink.brick, onClick = { confirmDelete = true })
                 },
             )

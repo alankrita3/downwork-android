@@ -123,7 +123,8 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
                     val github = project.submission?.githubUsername?.ifBlank { null } ?: container.session.me.value?.deliveryTargets?.githubUsername?.ifBlank { null }
                     val transferLine = when (transfer?.status) {
                         "awaiting_target" -> "We need your GitHub username to transfer the repository."
-                        "pending" -> "Transfer to ${github?.let { "@$it" } ?: "you"} is being prepared."
+                        // Pending is queued, not sent; its error (if any) is internal and never shown.
+                        "pending" -> "We're sending the repository to ${github?.let { "@$it" } ?: "you"}. GitHub will email you to accept it."
                         "initiated" -> "Transfer sent to ${github?.let { "@$it" } ?: "you"}. Accept it from the email GitHub sent you."
                         "accepted" -> "Transfer accepted. The repository is yours."
                         "failed" -> "The transfer failed" + (transfer.error?.let { ": $it" } ?: ".") + " Check your GitHub username and we will retry."
