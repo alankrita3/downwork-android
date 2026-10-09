@@ -15,6 +15,12 @@ class QuoteCopyTest {
         )
         assertEquals("Sized for payments and WhatsApp alerts.", complexitySentence(listOf("Payments.", "WhatsApp alerts")))
         assertEquals("", complexitySentence(listOf(" ")))
+        // Same case as iOS 6c457ef.
+        assertEquals(
+            "Sized for Android app, iOS app, web app and Stripe payments.",
+            complexitySentence(listOf("Android app", "iOS app", "Web app", "Stripe payments")),
+        )
+        assertEquals("Sized for Zapier hooks and iPhone widgets.", complexitySentence(listOf("Zapier hooks", "iPhone widgets")))
     }
 
     @Test fun settlementMatchesIos() {

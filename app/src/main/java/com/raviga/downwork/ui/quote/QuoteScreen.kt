@@ -320,7 +320,7 @@ internal fun complexitySentence(drivers: List<String>): String {
 private val NAMES = setOf(
     "android", "apple", "google", "aws", "amazon", "stripe", "razorpay", "paypal", "shopify", "slack",
     "firebase", "whatsapp", "instagram", "facebook", "twilio", "microsoft", "windows", "mac", "macos",
-    "openai", "salesforce", "hubspot", "zoom", "upi", "sms", "api",
+    "openai", "salesforce", "hubspot", "zapier", "zoom", "upi", "sms", "api", "iphone", "ipad",
 )
 
 /** "payments, two platforms and an admin panel" */
