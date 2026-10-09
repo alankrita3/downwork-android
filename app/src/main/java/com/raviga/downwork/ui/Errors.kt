@@ -9,12 +9,6 @@ fun Throwable.userLine(): String = when (this) {
         // The server's message, when it sent one (otherwise the exception carries the bare code).
         val server = message?.takeIf { it.isNotBlank() && it != code }
         when {
-            // Policy refusals are final from the app's side; say where to appeal.
-            // The server may already say it; never say it twice.
-            code == ApiException.CONTENT_REJECTED && detailString("kind") == "policy" ->
-                StatusCopy.errorLine(code, server).let { line ->
-                    if (StatusCopy.hasAppeal(line)) line else line + StatusCopy.mistakeSuffix()
-                }
             // The terms changed: the app shows them again; the line just says why the action stopped.
             code == ApiException.CONSENT_REQUIRED && detailStrings("missing").any { it == "terms" || it == "privacy" } ->
                 "Agree to the updated terms to continue."

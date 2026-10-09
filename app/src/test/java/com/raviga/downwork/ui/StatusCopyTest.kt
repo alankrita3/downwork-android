@@ -16,16 +16,11 @@ class StatusCopyTest {
     )
 
     @Test
-    fun `policy refusals get the appeal line exactly once`() {
+    fun `policy refusals show the server message as is`() {
         StatusCopy.supportEmail = "support@example.com"
-        assertEquals(
-            "Outside our policy. If you think this is a mistake, write to support@example.com.",
-            policy("Outside our policy.").userLine(),
-        )
-        val already = "Outside our policy. If you think this is a mistake, write to support@example.com."
-        assertEquals(already, policy(already).userLine())
-        val phrased = "Outside our policy. If you think this is a mistake, email us."
-        assertEquals(phrased, policy(phrased).userLine())
+        assertEquals("Outside our policy.", policy("Outside our policy.").userLine())
+        val withAppeal = "Outside our policy. If you think this is a mistake, write to support@example.com."
+        assertEquals(withAppeal, policy(withAppeal).userLine())
         StatusCopy.supportEmail = ""
     }
 

@@ -85,9 +85,9 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   "We never need passwords, keys or ID numbers to build your project, and it's safer not to share
   them." Buttons "Remove them", "Keep as is", "Edit".
 - Refused project: "We can't take this project on", the server's reason, "Nothing has been charged.
-  If you think this is a mistake, write to <supportEmail>." Policy refusals elsewhere append the same
-  "If you think this is a mistake…" line to the server message, unless the message already names the
-  support email (dev's does).
+  If you think this is a mistake, write to <supportEmail>." (the appeal is dropped when the server's
+  reason already carries it). Policy refusals elsewhere show the server's message as is: the backend
+  owns the "If you think this is a mistake…" sentence and the app never appends it.
 - Offline: "Couldn't reach DownWork. Check your connection and try again."
 - Timeline footer: "Projects are usually delivered well ahead of this date." (the quote screen
   shows `config.quote.timelineNote` from the backend instead).

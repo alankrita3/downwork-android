@@ -72,6 +72,7 @@ object StatusCopy {
 
     /** Maps an API error code to the plain copy the design asks for. */
     fun errorLine(code: String, fallback: String?): String = when (code) {
+        // The server's message is final copy, including where to appeal (backend owns that sentence).
         "content_rejected" -> fallback ?: "We can't take this on."
         "file_unsupported" -> fallback ?: "DownWork can read PDF, Word (.docx), text, Markdown and RTF files."
         "file_unreadable" -> fallback ?: "Couldn't read that file. If it's a scan or locked with a password, paste the important parts instead."

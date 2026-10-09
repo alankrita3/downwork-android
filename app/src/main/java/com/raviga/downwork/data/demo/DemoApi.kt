@@ -526,8 +526,10 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
     private fun demoPolicyHit(text: String): Boolean =
         listOf("phishing", "malware", "stalkerware", "keylogger").any { it in text.lowercase() }
 
+    /** Like the server, the message carries the appeal sentence; the apps show it as is. */
     private fun policyRefusal(message: String) = ApiException(
-        ApiException.CONTENT_REJECTED, 422, message,
+        ApiException.CONTENT_REJECTED, 422,
+        "$message If you think this is a mistake, write to ${config.legal.supportEmail}.",
         kotlinx.serialization.json.buildJsonObject { put("kind", kotlinx.serialization.json.JsonPrimitive("policy")) },
     )
 
