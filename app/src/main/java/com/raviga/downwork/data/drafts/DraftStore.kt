@@ -32,20 +32,29 @@ class DraftStore(
     @Volatile var unreadable: Int = 0
         private set
 
+    /**
+     * Reads every draft file not already in memory. Safe to call often: a file that
+     * can't be opened (a Keystore hiccup) is left exactly as it is and tried again on
+     * the next call; it is never written over, because only drafts that were read are
+     * ever written, each to its own file.
+     */
     suspend fun load() = lock.withLock {
-        if (loaded) return@withLock
-        val found = withContext(Dispatchers.IO) {
+        if (loaded && unreadable == 0) return@withLock
+        val known = _drafts.value
+        val (found, bad) = withContext(Dispatchers.IO) {
             dir.mkdirs()
             var bad = 0
-            val map = dir.listFiles { f -> f.name.endsWith(EXT) }.orEmpty().mapNotNull { f ->
-                runCatching { json.decodeFromString(LocalDraft.serializer(), String(sealer.open(f.readBytes()), Charsets.UTF_8)) }
-                    .onFailure { bad++ }
-                    .getOrNull()
-            }.associateBy { it.id }
-            unreadable = bad
-            map
+            val map = dir.listFiles { f -> f.name.endsWith(EXT) }.orEmpty()
+                .filter { f -> f.name.removeSuffix(EXT) !in known }
+                .mapNotNull { f ->
+                    runCatching { json.decodeFromString(LocalDraft.serializer(), String(sealer.open(f.readBytes()), Charsets.UTF_8)) }
+                        .onFailure { bad++ }
+                        .getOrNull()
+                }.associateBy { it.id }
+            map to bad
         }
-        _drafts.value = found
+        unreadable = bad
+        if (found.isNotEmpty()) _drafts.update { it + found }
         loaded = true
     }
 

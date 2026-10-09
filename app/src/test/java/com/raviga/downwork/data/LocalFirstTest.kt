@@ -73,6 +73,33 @@ class LocalFirstTest {
         assertTrue(store.drafts.value.isEmpty())
     }
 
+    @Test fun anUnreadableDraftIsNeverOverwrittenAndIsPickedUpLater() = runTest {
+        val dir = Files.createTempDirectory("drafts").toFile()
+        // A sealer that fails until "unlocked", like a Keystore that isn't ready yet.
+        var ready = false
+        val flaky = object : Sealer {
+            override fun seal(plain: ByteArray) = plain
+            override fun open(sealed: ByteArray): ByteArray = if (ready) sealed else throw IllegalStateException("locked")
+        }
+        val existing = LocalDraft(id = "ld_existing", title = "Keep me", createdAt = "a", updatedAt = "a")
+        val file = java.io.File(dir, "ld_existing.draft")
+        file.writeText(json.encodeToString(LocalDraft.serializer(), existing))
+        val before = file.readBytes()
+
+        val store = DraftStore(dir, json, flaky)
+        store.load()
+        assertEquals(1, store.unreadable)
+        // Working on other drafts meanwhile must not touch the one we couldn't read.
+        store.create(LocalDraft(id = "ld_new", createdAt = "b", updatedAt = "b"))
+        assertTrue(file.readBytes().contentEquals(before))
+
+        ready = true
+        store.load()
+        assertEquals(0, store.unreadable)
+        assertEquals("Keep me", store.get("ld_existing")?.title)
+        assertEquals(2, store.drafts.value.size)
+    }
+
     @Test fun quoteIsCurrentOnlyForTheQuotedVersion() {
         val v1 = com.raviga.downwork.data.drafts.LocalVersion(1, Document(version = 1), "a", "draft")
         val v2 = v1.copy(version = 2)
