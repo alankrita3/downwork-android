@@ -50,6 +50,8 @@ enum class Picture(@DrawableRes val res: Int) {
     Writing(R.drawable.illo_writing),
     Quote(R.drawable.illo_quote),
     Building(R.drawable.illo_building),
+    /** Onboarding step 3 only: clay robots building the app, an engineer with a checklist approving. */
+    AIBuild(R.drawable.illo_ai_build),
     Delivered(R.drawable.illo_delivered),
     Credits(R.drawable.illo_credits),
     Privacy(R.drawable.illo_privacy),

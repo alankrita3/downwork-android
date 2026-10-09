@@ -63,13 +63,23 @@ private val steps = listOf(
         listOf(Picture.Speak, Picture.Type, Picture.Upload),
     ),
     Step("See the price first", "You get a quote and a timeline before anything starts. Nothing is charged until you submit.", listOf(Picture.Quote)),
-    Step("It's yours", "You get the code, a handover guide and simple steps to make it live.", listOf(Picture.Delivered)),
+    // The founder's exact wording (iOS 489412c); don't edit it without her approval.
+    Step(
+        "Built by AI, checked by experts",
+        "AI builds your project at speed. Experts recommend the right tech stack, or use yours, and review the work before it reaches you.",
+        listOf(Picture.AIBuild),
+    ),
+    Step(
+        "Ready before you know it",
+        "A working project, ready for your review, with the code, a handover guide and simple steps to make it live.",
+        listOf(Picture.Delivered),
+    ),
 )
 
 /**
- * First launch. Page one says what DownWork does; three more show the flow with its pictures (describe,
- * see the price, it's yours), as on iOS. "Get started" is on every page, so nobody has to swipe.
- * No copy about who builds the project (team, AI or anything else) unless the founder approves it.
+ * First launch. Page one says what DownWork does; four more show the flow with its pictures (describe,
+ * see the price, built by AI and checked by experts, ready), as on iOS. "Get started" is on every page,
+ * so nobody has to swipe. Who-builds copy exists only here, in the founder's approved words.
  */
 @Composable
 fun WelcomeScreen(nav: NavController) {
