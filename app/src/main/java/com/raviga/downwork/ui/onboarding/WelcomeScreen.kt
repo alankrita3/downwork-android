@@ -53,26 +53,26 @@ import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 import kotlinx.coroutines.launch
 
-/** One step of the flow on Welcome: its pictures, a title and one line. */
-private data class Step(val title: String, val body: String, val pictures: List<Picture>)
+/** One step of the flow on Welcome: its picture, a title and one line. */
+private data class Step(val title: String, val body: String, val picture: Picture)
 
 private val steps = listOf(
     Step(
         "Describe it your way",
         "Say it, type it, or upload a document you already have. We turn it into a clear brief you can edit.",
-        listOf(Picture.Speak, Picture.Type, Picture.Upload),
+        Picture.Describe,
     ),
-    Step("See the price first", "You get a quote and a timeline before anything starts. Nothing is charged until you submit.", listOf(Picture.Quote)),
+    Step("See the price first", "You get a quote and a timeline before anything starts. Nothing is charged until you submit.", Picture.Quote),
     // The founder's exact wording (iOS 489412c); don't edit it without her approval.
     Step(
         "Built by AI, checked by experts",
         "AI builds your project at speed. Experts recommend the right tech stack, or use yours, and review the work before it reaches you.",
-        listOf(Picture.AIBuild),
+        Picture.AIBuild,
     ),
     Step(
         "Ready before you know it",
         "A working project, ready for your review, with the code, a handover guide and simple steps to make it live.",
-        listOf(Picture.Delivered),
+        Picture.Delivered,
     ),
 )
 
@@ -161,18 +161,7 @@ private fun StepPage(step: Step, number: Int, pictureHeight: Dp) {
             .padding(horizontal = Dw.gutterWide)
             .padding(top = statusBar + 24.dp, bottom = 16.dp),
     ) {
-        if (step.pictures.size > 1) {
-            // The three ways to describe, side by side.
-            Row(
-                Modifier.fillMaxWidth().height(pictureHeight),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                step.pictures.forEach { Illustration(it, modifier = Modifier.weight(1f), height = pictureHeight * 0.5f, radius = 22.dp) }
-            }
-        } else {
-            Illustration(step.pictures.first(), height = pictureHeight, radius = Dw.tileRadius)
-        }
+        Illustration(step.picture, height = pictureHeight, radius = Dw.tileRadius)
         Spacer(Modifier.height(28.dp))
         Text("Step $number of ${steps.size}", style = DwType.secondaryMedium, color = Ink.teal)
         Spacer(Modifier.height(8.dp))

@@ -25,7 +25,7 @@ Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper`
 | Picture | Where |
 |---|---|
 | Welcome | `WelcomeScreen` page 1, full bleed under the status bar, 46% of the screen (240 to 440 dp) so the four promises fit above the button |
-| Speak + Type + Upload, Quote, AIBuild, Delivered | Welcome pages 2 to 5 ("Step N of 4"), 34% of the screen (200 to 320 dp); the three thumbnails sit in a row. AIBuild (clay robots building the app, an engineer approving) is used only there; Building is on the status screen only |
+| Describe, Quote, AIBuild, Delivered | Welcome pages 2 to 5 ("Step N of 4"), 34% of the screen (200 to 320 dp), one scene per step. Describe (one person speaking, typing and uploading) is used only there. AIBuild (clay robots building the app, an engineer approving) is used only there; Building is on the status screen only |
 | HomeEmpty | empty `HomeScreen`, 220 dp |
 | Speak / Type / Upload | chooser tiles (`DescribeChoices`), 84 dp thumbnails |
 | Writing | reading a document, writing the brief (Capture and Document), pricing (Quote): 180 to 220 dp spot |

@@ -43,6 +43,8 @@ import com.raviga.downwork.ui.theme.Ink
 /** The clay illustrations (docs/DESIGN.md, Pictures). Each one belongs to one moment in the flow. */
 enum class Picture(@DrawableRes val res: Int) {
     Welcome(R.drawable.illo_welcome),
+    /** Onboarding step 1: the same person speaking, typing and uploading, ideas flowing into a brief. */
+    Describe(R.drawable.illo_describe),
     HomeEmpty(R.drawable.illo_home_empty),
     Speak(R.drawable.illo_speak),
     Type(R.drawable.illo_type),
