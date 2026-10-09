@@ -44,7 +44,9 @@ adb shell am start -n com.raviga.downwork.debug/com.raviga.downwork.MainActivity
 
 - `secrets.properties` (gitignored) holds `API_BASE_URL_DEBUG`; without it the app uses the
   in-process demo backend (`data/demo/DemoApi.kt`). Debug Settings has a switch to force demo.
-- Emulator: `ANDROID_SDK_ROOT=~/Library/Android/sdk ~/Library/Android/sdk/emulator/emulator -avd Pixel_6_API_34`
-  (the shell's `ANDROID_HOME` points at an old SDK bundle; override it). Prefer a connected
-  device when one is attached.
+- Emulator: `ANDROID_HOME=~/Library/Android/sdk ANDROID_SDK_ROOT=~/Library/Android/sdk ~/Library/Android/sdk/emulator/emulator -avd DownWork_API34`
+  (the shell's `ANDROID_HOME` points at an old SDK bundle; override both. `Pixel_6_API_34` has a
+  pattern lock). Prefer a connected device when one is attached.
+- Release check: `./gradlew assembleRelease` builds the R8 APK for local testing; `bundleRelease`
+  refuses to run until the prod URL, RevenueCat key, `google-services.json` and upload key exist.
 - Package `com.raviga.downwork`; debug builds use `com.raviga.downwork.debug`.
