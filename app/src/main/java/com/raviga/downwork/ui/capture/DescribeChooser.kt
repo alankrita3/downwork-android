@@ -54,7 +54,7 @@ fun DescribeChooserSheet(projectTitle: String?, onPick: (String) -> Unit, onDism
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                if (projectTitle == null) "Pick whichever is easiest. You can add more later." else "Whatever you add goes into the same brief.",
+                if (projectTitle == null) "Whichever is easiest. You can mix them, and edit everything after." else "Add more detail, whichever way is easiest.",
                 style = DwType.caption,
                 color = Ink.graphite,
                 modifier = Modifier.padding(horizontal = Dw.gutter),

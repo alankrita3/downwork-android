@@ -10,6 +10,23 @@ import org.junit.Test
 
 class StatusCopyTest {
 
+    private fun policy(message: String) = com.raviga.downwork.data.api.ApiException(
+        "content_rejected", 422, message,
+        kotlinx.serialization.json.buildJsonObject { put("kind", kotlinx.serialization.json.JsonPrimitive("policy")) },
+    )
+
+    @Test
+    fun `policy refusals get the appeal line exactly once`() {
+        StatusCopy.supportEmail = "support@example.com"
+        assertEquals(
+            "Outside our policy. If you think this is a mistake, write to support@example.com.",
+            policy("Outside our policy.").userLine(),
+        )
+        val already = "Outside our policy. If you think this is a mistake, write to support@example.com."
+        assertEquals(already, policy(already).userLine())
+        StatusCopy.supportEmail = ""
+    }
+
     @Test
     fun `detail titles match the shared vocabulary`() {
         assertEquals("Awaiting review", StatusCopy.detailTitle(ProjectStatus.SUBMITTED))

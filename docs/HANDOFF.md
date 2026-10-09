@@ -30,6 +30,11 @@ requested → delivered again → AWS done → accepted. Also: versions list and
 targets, AWS connect (external ID issued), settings, privacy screen. All 31 of the iOS session's captured dev
 responses decode with the Android models (`app/src/test/resources/fixtures`).
 
+Contract v0.5 (document upload, screening, retention) was then run on dev the same way: re-consent
+to the 2026-10-09 terms → upload a PDF → "Here's what we read" → file input → generated brief, and a
+policy refusal shown with the appeal line. The on-device check for keys, cards, Aadhaar and PAN, the
+refused-project block and the demo backend's equivalents were exercised in demo mode.
+
 The minified release build (R8, signed with a local debug key) was also installed and run against dev:
 register → terms → typed description → AI consent → generated brief → quote, all decoding correctly.
 `./gradlew bundleRelease` refuses to build until items 3 to 6 are in place (`checkReleaseReadiness`), so

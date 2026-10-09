@@ -70,18 +70,24 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 
 - Capture hint: "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
 - Empty home: "No projects yet. Tap the microphone and describe what you want built."
-- Chooser: "Describe your project" / "Add to <title>"; rows Speak ("Talk it through in English or
+- Chooser: "Describe your project" ("Whichever is easiest. You can mix them, and edit everything
+  after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); rows Speak ("Talk it through in English or
   Hindi. We write it up."), Type ("Write or paste a description."), Upload a document ("A PDF, Word or
   text file you already have."); footer "Recordings are deleted after N days and documents as soon as
   they're read. Only the text is kept, for your brief." (N from `config.retention.audioDays`).
-- Upload review: "Here's what we read", "From <file>, N pages", "Only the text is kept. The file is
-  deleted as soon as it's read, and is never shared with the team.", then the server's `notice`.
+- Upload tab: "Upload a requirements document" / "A PDF, Word, RTF or text file up to 10 MB. We read
+  the text, you check it, and the brief is written from it." / "Only the text is kept. The file is
+  deleted as soon as it's read, and is never shared with the team." / "Choose a file".
+- Review titles and hints: voice "Here's what we heard" / "Tap to fix anything that was misheard.";
+  typed "Here's your description" / "Tap to edit before we write the brief."; upload "Here's what we
+  read" / "From <file>, N pages" / the server's `notice` / "Tap to fix anything before we write the brief."
 - Sensitive data: "This looks like it includes <up to two kinds, then 'and other secrets'>." /
   "We never need passwords, keys or ID numbers to build your project, and it's safer not to share
   them." Buttons "Remove them", "Keep as is", "Edit".
 - Refused project: "We can't take this project on", the server's reason, "Nothing has been charged.
   If you think this is a mistake, write to <supportEmail>." Policy refusals elsewhere append the same
-  "If you think this is a mistake…" line to the server message.
+  "If you think this is a mistake…" line to the server message, unless the message already names the
+  support email (dev's does).
 - Offline: "Couldn't reach DownWork. Check your connection and try again."
 - Timeline footer: "Projects are usually delivered well ahead of this date." (the quote screen
   shows `config.quote.timelineNote` from the backend instead).

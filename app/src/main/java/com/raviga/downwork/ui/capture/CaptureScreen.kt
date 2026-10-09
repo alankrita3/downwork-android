@@ -202,15 +202,15 @@ private fun CapturePhase(
             Spacer(Modifier.height(24.dp))
             if (state.tab == CaptureViewModel.TAB_UPLOAD) {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Text("Upload a requirements document", style = DwType.heading, color = Ink.ink)
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        "Already have a brief, a spec or notes? Upload them and we write them up.",
-                        style = DwType.dictation.copy(fontStyle = FontStyle.Italic),
-                        color = Ink.ash,
+                        "A PDF, Word, RTF or text file up to ${fileMaxBytes / 1_048_576} MB. We read the text, you check it, and the brief is written from it.",
+                        style = DwType.body,
+                        color = Ink.graphite,
                     )
-                    Spacer(Modifier.height(24.dp))
-                    Text("PDF, Word (.docx), text, Markdown or RTF, up to ${fileMaxBytes / 1_048_576} MB.", style = DwType.secondary, color = Ink.graphite)
-                    Spacer(Modifier.height(8.dp))
-                    Text(FILE_NOTE, style = DwType.secondary, color = Ink.graphite)
+                    Spacer(Modifier.height(12.dp))
+                    Text(FILE_NOTE, style = DwType.caption, color = Ink.graphite)
                     InlineNotice(state.error)
                 }
             } else if (state.tab == CaptureViewModel.TAB_SPEAK) {
@@ -274,8 +274,8 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
             DwTopBar(
                 title = when (state.tab) {
                     CaptureViewModel.TAB_UPLOAD -> "Here's what we read"
-                    CaptureViewModel.TAB_TYPE -> "What you wrote"
-                    else -> "What we heard"
+                    CaptureViewModel.TAB_TYPE -> "Here's your description"
+                    else -> "Here's what we heard"
                 },
                 onBack = { if (!state.transcribing) vm.recordMore() },
             )
@@ -318,10 +318,12 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                         Spacer(Modifier.height(4.dp))
                         Text(notice, style = DwType.caption, color = Ink.amber)
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tap to fix anything before we write the brief.", style = DwType.secondary, color = Ink.graphite)
                 } else if (state.tab == CaptureViewModel.TAB_TYPE) {
-                    Text("Check it reads right. Then we write the brief.", style = DwType.secondary, color = Ink.graphite)
+                    Text("Tap to edit before we write the brief.", style = DwType.secondary, color = Ink.graphite)
                 } else {
-                    Text("Fix anything we misheard. Then we write the brief.", style = DwType.secondary, color = Ink.graphite)
+                    Text("Tap to fix anything that was misheard.", style = DwType.secondary, color = Ink.graphite)
                 }
                 Spacer(Modifier.height(16.dp))
                 PlainEditor(
