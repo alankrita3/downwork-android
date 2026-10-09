@@ -307,7 +307,10 @@ class CaptureViewModel(
     private suspend fun transcribe(rec: AudioRecorder.Recording) {
         try {
             val id = ensureProject()
-            val (audio, result) = container.projects.transcribe(id, rec.file, (rec.durationMs / 1000).toInt(), Locale.getDefault().language) { st ->
+            // The backend auto-detects; only hint when the phone itself is set to Hindi, so an
+            // English-locale phone doesn't bias a Hindi recording towards English.
+            val hint = Locale.getDefault().language.takeIf { it == "hi" }
+            val (audio, result) = container.projects.transcribe(id, rec.file, (rec.durationMs / 1000).toInt(), hint) { st ->
                 _state.update { it.copy(progress = st.progress, progressMessage = st.message) }
             }
             audioId = audio
