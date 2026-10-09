@@ -28,7 +28,9 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
-        pendingProject = projectFrom(intent)
+        // A recreated activity (rotation, font scale, process death) gets its old intent
+        // back; only a fresh launch acts on it.
+        if (savedInstanceState == null) pendingProject = projectFrom(intent)
         val container = (application as DownWorkApp).container
         setContent {
             DownWorkTheme {
@@ -49,10 +51,18 @@ class MainActivity : ComponentActivity() {
         projectFrom(intent)?.let { pendingProject = it }
     }
 
-    /** downwork://project/{id} from a notification or the delivery email. */
+    /**
+     * downwork://project/{id} from a notification we built, or the `projectId`
+     * data extra FCM puts on the launch intent when it showed the notification
+     * itself (app in the background).
+     */
     private fun projectFrom(intent: Intent?): String? {
-        val data = intent?.data ?: return null
-        if (data.scheme != "downwork" || data.host != "project") return null
-        return data.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        intent ?: return null
+        intent.data?.let { data ->
+            if (data.scheme == "downwork" && data.host == "project") {
+                return data.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+            }
+        }
+        return intent.getStringExtra("projectId")?.takeIf { it.startsWith("pr_") }
     }
 }

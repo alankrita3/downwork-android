@@ -23,8 +23,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -38,6 +42,8 @@ sealed interface AppEvent {
     data class ProjectUpdated(val projectId: String) : AppEvent
     data object CreditsUpdated : AppEvent
     data object ExportReady : AppEvent
+    /** This phone was revoked from the client's account and now holds a fresh one; start over. */
+    data object SignedOut : AppEvent
 }
 
 /**
@@ -79,7 +85,7 @@ class AppContainer(private val app: Application) {
 
     val okHttp: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(AuthInterceptor { sessionStore.accessToken })
-        .authenticator(ReRegisterAuthenticator(baseUrl, plainHttp, json, sessionStore))
+        .authenticator(ReRegisterAuthenticator(baseUrl, plainHttp, json, sessionStore, onSignedOut = ::onSignedOut))
         .apply {
             if (BuildConfig.DEBUG) addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
         }
@@ -114,4 +120,47 @@ class AppContainer(private val app: Application) {
     private val _events = MutableSharedFlow<AppEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<AppEvent> = _events.asSharedFlow()
     fun emit(event: AppEvent) { _events.tryEmit(event) }
+
+    private val _signedOut = MutableStateFlow(false)
+
+    /** True after a revoked phone was given a fresh account; Home explains it once. */
+    val signedOut: StateFlow<Boolean> = _signedOut.asStateFlow()
+    fun dismissSignedOut() { _signedOut.value = false }
+
+    private fun onSignedOut() {
+        _signedOut.value = true
+        emit(AppEvent.SignedOut)
+    }
+
+    init {
+        // Everything tied to a client follows the stored clientId: RevenueCat's app user,
+        // the push token's device record, and the cached projects and credits.
+        appScope.launch {
+            var known: String? = null
+            var first = true
+            sessionStore.clientIdFlow.collect { id ->
+                val previous = known
+                known = id
+                val initial = first
+                first = false
+                if (previous != null && id != previous) forgetClient()
+                if (id == null) return@collect
+                billing.identify(id)
+                if (!initial) {
+                    push.identityChanged()
+                    if (previous != null) {
+                        launch { runCatching { projects.refreshAll() } }
+                        launch { runCatching { credits.refresh() } }
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun forgetClient() {
+        session.resetMe()
+        credits.reset()
+        projects.reset()
+        prefs.clearClientData()
+    }
 }

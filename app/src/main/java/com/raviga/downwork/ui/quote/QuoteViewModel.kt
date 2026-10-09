@@ -44,6 +44,17 @@ class QuoteViewModel(private val container: AppContainer, val projectId: String)
     val state: StateFlow<State> = _state.asStateFlow()
     private var quotedOnce = false
 
+    /**
+     * One Idempotency-Key per distinct submit body, reused on retry: if the first
+     * attempt charged credits but the response was lost, the retry replays it
+     * instead of failing. Cleared once a submit lands.
+     */
+    private var submitKey: Pair<String, String>? = null
+
+    private fun keyFor(body: String): String =
+        submitKey?.takeIf { it.first == body }?.second
+            ?: java.util.UUID.randomUUID().toString().also { submitKey = body to it }
+
     init {
         viewModelScope.launch {
             container.projects.project(projectId).collect { p ->
@@ -101,11 +112,18 @@ class QuoteViewModel(private val container: AppContainer, val projectId: String)
             runCatching {
                 if (s.isResubmit) {
                     if (github != s.me?.deliveryTargets?.githubUsername) container.session.setDeliveryTargets(github, null)
-                    container.projects.resubmit(projectId, quote.id)
+                    container.projects.resubmit(projectId, quote.id, keyFor("resubmit:${quote.id}"))
                 } else {
-                    container.projects.submit(projectId, quote.id, github, null)
+                    container.projects.submit(projectId, quote.id, github, null, keyFor("submit:${quote.id}:$github"))
                 }
+            }.recoverCatching { e ->
+                // A submit that landed under an earlier key shows up as invalid_state; check before calling it an error.
+                if ((e as? ApiException)?.code != ApiException.INVALID_STATE) throw e
+                val now = container.projects.refresh(projectId)
+                if (now.status != ProjectStatus.SUBMITTED && now.status != ProjectStatus.APPROVED) throw e
+                now
             }.onSuccess {
+                submitKey = null
                 runCatching { container.credits.refresh() }
                 runCatching { container.session.refreshMe() }
                 _state.update { it.copy(submitting = false, submitted = true) }

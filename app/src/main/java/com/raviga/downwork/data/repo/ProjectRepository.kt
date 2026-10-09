@@ -36,7 +36,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.util.UUID
 
 /**
  * Projects, their documents and comments. Holds the latest known copy of
@@ -80,8 +79,24 @@ class ProjectRepository(
         }
     }
 
+    /** Forgets everything held for the previous client (sign-out, recovery, deletion). */
+    suspend fun reset() {
+        _summaries.value = emptyList()
+        _projects.value = emptyMap()
+        _documents.value = emptyMap()
+        _loadedOnce.value = false
+        cache.clearProjects()
+    }
+
     suspend fun refreshAll(): List<ProjectSummary> {
-        val list = apiCall(json) { api.projects() }.projects
+        val list = mutableListOf<ProjectSummary>()
+        var cursor: String? = null
+        var pages = 0
+        do {
+            val page = apiCall(json) { api.projects(before = cursor) }
+            list += page.projects
+            cursor = page.nextCursor
+        } while (cursor != null && ++pages < MAX_PAGES)
         _summaries.value = list
         _loadedOnce.value = true
         cache.write(CacheStore.PROJECTS, ListSerializer(ProjectSummary.serializer()), list)
@@ -213,10 +228,11 @@ class ProjectRepository(
         return quote
     }
 
-    suspend fun submit(id: String, quoteId: String, githubUsername: String?, awsAccountId: String?, idempotencyKey: String = UUID.randomUUID().toString()): Project =
+    /** [idempotencyKey] must be reused when retrying the same submit (contract section 2). */
+    suspend fun submit(id: String, quoteId: String, githubUsername: String?, awsAccountId: String?, idempotencyKey: String): Project =
         store(apiCall(json) { api.submit(id, idempotencyKey, SubmitRequest(quoteId, githubUsername, awsAccountId)) })
 
-    suspend fun resubmit(id: String, quoteId: String, idempotencyKey: String = UUID.randomUUID().toString()): Project =
+    suspend fun resubmit(id: String, quoteId: String, idempotencyKey: String): Project =
         store(apiCall(json) { api.resubmit(id, idempotencyKey, ResubmitRequest(quoteId)) })
 
     /** Newest first; the backend marks team comments read. */
@@ -240,6 +256,11 @@ class ProjectRepository(
         store(apiCall(json) { api.requestRevision(id, RevisionRequestBody(message.trim())) })
 
     // ----- internal -----
+
+    private companion object {
+        /** 50 per page; a client with more than 500 projects sees the newest 500. */
+        const val MAX_PAGES = 10
+    }
 
     private suspend fun store(project: Project): Project {
         _projects.update { it + (project.id to project) }

@@ -78,6 +78,7 @@ object StatusCopy {
         "rate_limited" -> "Too many requests. Wait a moment and try again."
         "ai_unavailable" -> "The AI is busy right now. Try again in a moment."
         "not_found" -> "That no longer exists."
+        "job_timeout" -> "This is taking longer than usual. Check back in a few minutes."
         "unauthenticated" -> "This phone is no longer linked. Move your projects here with a recovery key."
         else -> fallback?.takeIf { it.isNotBlank() } ?: "Something went wrong. Try again."
     }

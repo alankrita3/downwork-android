@@ -2,6 +2,8 @@ package com.raviga.downwork.data.local
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
@@ -17,6 +19,9 @@ class CacheStore(context: Context, private val json: Json) {
 
     private val dir = File(context.filesDir, "cache").apply { mkdirs() }
 
+    /** Writes are small and rare; one lock keeps two writers of the same file from interleaving. */
+    private val writeLock = Mutex()
+
     suspend fun <T> read(name: String, deserializer: DeserializationStrategy<T>): T? =
         withContext(Dispatchers.IO) {
             val file = File(dir, "$name.json")
@@ -24,20 +29,37 @@ class CacheStore(context: Context, private val json: Json) {
             runCatching { json.decodeFromString(deserializer, file.readText()) }.getOrNull()
         }
 
-    suspend fun <T> write(name: String, serializer: SerializationStrategy<T>, value: T) =
-        withContext(Dispatchers.IO) {
-            val file = File(dir, "$name.json")
-            val tmp = File(dir, "$name.json.tmp")
-            tmp.writeText(json.encodeToString(serializer, value))
-            tmp.renameTo(file)
+    suspend fun <T> write(name: String, serializer: SerializationStrategy<T>, value: T) {
+        val text = json.encodeToString(serializer, value)
+        writeLock.withLock {
+            withContext(Dispatchers.IO) {
+                val file = File(dir, "$name.json")
+                val tmp = File(dir, "$name.json.${java.util.UUID.randomUUID()}.tmp")
+                tmp.writeText(text)
+                if (!tmp.renameTo(file)) {
+                    file.delete()
+                    if (!tmp.renameTo(file)) tmp.delete()
+                }
+            }
         }
-
-    suspend fun delete(name: String) = withContext(Dispatchers.IO) {
-        File(dir, "$name.json").delete()
     }
 
-    suspend fun clearAll() = withContext(Dispatchers.IO) {
-        dir.listFiles()?.forEach { it.delete() }
+    suspend fun delete(name: String) = writeLock.withLock {
+        withContext(Dispatchers.IO) { File(dir, "$name.json").delete() }
+    }
+
+    suspend fun clearAll() = writeLock.withLock {
+        withContext(Dispatchers.IO) { dir.listFiles()?.forEach { it.delete() } }
+    }
+
+    /** Drops the project list, projects, documents and credits; keeps config, me and demo state. */
+    suspend fun clearProjects() = writeLock.withLock {
+        withContext(Dispatchers.IO) {
+            dir.listFiles()?.filter { f ->
+                val n = f.name
+                n == "$PROJECTS.json" || n == "$CREDITS.json" || n.startsWith("project_") || n.startsWith("document_")
+            }?.forEach { it.delete() }
+        }
     }
 
     companion object {

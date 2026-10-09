@@ -5,35 +5,53 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/** What the network layer needs of the identity; [SessionStore] in the app, a fake in tests. */
+interface SessionTokens {
+    val clientId: String?
+    val accessToken: String?
+    val installId: String
+    fun set(clientId: String, accessToken: String, recoveryKey: String?)
+}
 
 /**
  * The client identity: clientId, bearer token and the recovery key, kept in
  * EncryptedSharedPreferences (Android's nearest thing to Keychain). Excluded
  * from backup so a restored phone registers afresh or links with the key.
  */
-class SessionStore(context: Context) {
+class SessionStore(context: Context) : SessionTokens {
 
-    private val prefs: SharedPreferences = runCatching {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "session",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }.getOrElse {
-        // Keystore can be broken on a handful of devices; a plain file beats a crash.
-        context.getSharedPreferences("session_plain", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = run {
+        // Keystore is broken on a handful of devices; a private plain file beats a crash.
+        // Once the plain file holds an identity it stays in use, so a Keystore that
+        // recovers later cannot swap this phone back to an older identity.
+        val plain = context.getSharedPreferences("session_plain", Context.MODE_PRIVATE)
+        if (plain.contains(KEY_INSTALL_ID)) return@run plain
+        runCatching {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                "session",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrElse { plain }
     }
 
-    var clientId: String?
-        get() = prefs.getString(KEY_CLIENT_ID, null)
-        set(value) = prefs.edit { putString(KEY_CLIENT_ID, value) }
+    private val _clientIdFlow = MutableStateFlow(prefs.getString(KEY_CLIENT_ID, null))
 
-    var accessToken: String?
+    /** The client this device belongs to; changes on register, recover, sign-out and deletion. */
+    val clientIdFlow: StateFlow<String?> = _clientIdFlow.asStateFlow()
+
+    override val clientId: String? get() = prefs.getString(KEY_CLIENT_ID, null)
+
+    override var accessToken: String?
         get() = prefs.getString(KEY_TOKEN, null)
         set(value) = prefs.edit { putString(KEY_TOKEN, value) }
 
@@ -44,17 +62,18 @@ class SessionStore(context: Context) {
     val isRegistered: Boolean get() = !clientId.isNullOrBlank() && !accessToken.isNullOrBlank()
 
     /** Stable per-install UUID; re-registering with it yields the same clientId. */
-    val installId: String
+    override val installId: String
         get() = prefs.getString(KEY_INSTALL_ID, null) ?: java.util.UUID.randomUUID().toString().also {
             prefs.edit { putString(KEY_INSTALL_ID, it) }
         }
 
-    fun set(clientId: String, accessToken: String, recoveryKey: String?) {
+    override fun set(clientId: String, accessToken: String, recoveryKey: String?) {
         prefs.edit {
             putString(KEY_CLIENT_ID, clientId)
             putString(KEY_TOKEN, accessToken)
             if (recoveryKey != null) putString(KEY_RECOVERY, recoveryKey)
         }
+        _clientIdFlow.value = clientId
     }
 
     /** Forgets the identity but keeps the installId so a re-register maps to the same client. */
@@ -64,10 +83,14 @@ class SessionStore(context: Context) {
             clear()
             putString(KEY_INSTALL_ID, install)
         }
+        _clientIdFlow.value = null
     }
 
     /** Full wipe, including the installId (after account deletion). */
-    fun wipe() = prefs.edit { clear() }
+    fun wipe() {
+        prefs.edit { clear() }
+        _clientIdFlow.value = null
+    }
 
     private companion object {
         const val KEY_CLIENT_ID = "client_id"

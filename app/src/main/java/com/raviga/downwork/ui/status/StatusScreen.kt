@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -53,6 +54,10 @@ fun StatusScreen(nav: NavController, projectId: String) {
     val container = LocalAppContainer.current
     val vm: StatusViewModel = viewModel(key = "status_$projectId") { StatusViewModel(container, projectId) }
     val state by vm.state.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(vm) {
+        vm.onVisible()
+        onPauseOrDispose { vm.onHidden() }
+    }
     val project = state.project
     var confirmCancel by remember { mutableStateOf(false) }
 

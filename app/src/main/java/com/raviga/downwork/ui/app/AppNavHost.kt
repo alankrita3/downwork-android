@@ -18,6 +18,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.raviga.downwork.data.api.ApiException
 import com.raviga.downwork.ui.LocalAppContainer
 import com.raviga.downwork.ui.capture.CaptureScreen
 import com.raviga.downwork.ui.components.ErrorState
@@ -69,9 +70,24 @@ fun AppNavHost(nav: NavHostController, pendingDeepLinkProject: String?, onDeepLi
         return
     }
 
+    LaunchedEffect(state.restartAt) {
+        val route = state.restartAt ?: return@LaunchedEffect
+        nav.navigate(route) { popUpTo(0) { inclusive = true } }
+        app.restartConsumed()
+    }
+
     LaunchedEffect(pendingDeepLinkProject) {
         val id = pendingDeepLinkProject ?: return@LaunchedEffect
-        nav.navigate(Routes.status(id)) { launchSingleTop = true }
+        // Onboarding (welcome, terms) comes first; the project is on Home afterwards.
+        if (state.startRoute == Routes.HOME) {
+            val projects = container.projects
+            projects.warmProject(id)
+            val status = projects.cachedProject(id)?.status
+                ?: projects.summaries.value.firstOrNull { it.id == id }?.status
+                ?: try { projects.refresh(id).status } catch (e: ApiException) { null }
+            if (status != null) nav.navigate(Routes.forProject(id, status)) { launchSingleTop = true }
+        }
+        // Consumed last: clearing it earlier would restart this effect mid-lookup.
         onDeepLinkConsumed()
     }
 

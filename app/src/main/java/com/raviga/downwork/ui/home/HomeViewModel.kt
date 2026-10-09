@@ -30,6 +30,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     val isDemo: Boolean get() = container.isDemo
 
+    /** This phone was signed out of its old account; the empty state says how to get it back. */
+    val signedOut: StateFlow<Boolean> = container.signedOut
+    fun dismissSignedOut() = container.dismissSignedOut()
+
     init {
         refresh()
         viewModelScope.launch {

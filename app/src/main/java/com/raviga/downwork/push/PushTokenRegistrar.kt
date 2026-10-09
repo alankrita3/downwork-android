@@ -32,6 +32,12 @@ class PushTokenRegistrar(
         }
     }
 
+    /** A new device record (register, recover) has no token yet: send it again. */
+    fun identityChanged() {
+        sentThisProcess = false
+        scope.launch { runCatching { syncIfNeeded() } }
+    }
+
     suspend fun syncIfNeeded() {
         if (!isFirebaseConfigured || !session.isRegistered) return
         val current = prefs.current()

@@ -34,19 +34,37 @@ class StatusViewModel(private val container: AppContainer, val projectId: String
     init {
         viewModelScope.launch { container.projects.project(projectId).collect { p -> _state.update { it.copy(project = p, comments = p?.review?.comments ?: it.comments) } } }
         viewModelScope.launch { container.session.config.collect { c -> _state.update { it.copy(config = c) } } }
-        viewModelScope.launch { container.events.collect { if (it is AppEvent.ProjectUpdated && it.projectId == projectId) refresh() } }
         viewModelScope.launch {
-            container.projects.warmProject(projectId)
-            refresh()
+            container.events.collect { if (visible && it is AppEvent.ProjectUpdated && it.projectId == projectId) refresh() }
         }
-        // Gentle polling while the team is working, in case push is not configured yet.
-        viewModelScope.launch {
+        viewModelScope.launch { container.projects.warmProject(projectId) }
+    }
+
+    private var visible = false
+    private var pollJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * The screen is in front: refresh (which also marks team comments read) and
+     * poll gently while the team is working, in case push is not configured.
+     * Nothing runs while the screen is covered or the app is in the background.
+     */
+    fun onVisible() {
+        visible = true
+        refresh()
+        pollJob?.cancel()
+        pollJob = viewModelScope.launch {
             while (isActive) {
                 delay(if (container.isDemo) 5_000 else 30_000)
                 val status = _state.value.project?.status ?: continue
                 if (!com.raviga.downwork.data.api.ProjectStatus.isTerminal(status)) runCatching { container.projects.refresh(projectId) }
             }
         }
+    }
+
+    fun onHidden() {
+        visible = false
+        pollJob?.cancel()
+        pollJob = null
     }
 
     fun refresh() {

@@ -52,6 +52,11 @@ class SessionRepository(
     val recoveryKey: String? get() = sessionStore.recoveryKey
     val isRegistered: Boolean get() = sessionStore.isRegistered
 
+    /** Drops the previous client's [me]; [config] is the same for everyone. */
+    fun resetMe() {
+        _me.value = null
+    }
+
     suspend fun warmFromCache() {
         cache.read(CacheStore.CONFIG, AppConfig.serializer())?.let { _config.value = it }
         cache.read(CacheStore.ME, Me.serializer())?.let { _me.value = it }
@@ -102,6 +107,8 @@ class SessionRepository(
     fun needsAiConsent(me: Me?): Boolean = me?.consent?.aiGranted != true
 
     suspend fun acceptLegal() {
+        // After a deletion the device starts over without an identity.
+        if (!sessionStore.isRegistered) ensureRegistered()
         val legal = _config.value.legal
         val consent = apiCall(json) {
             api.putConsent(ConsentRequest(termsVersion = legal.termsVersion, privacyVersion = legal.privacyVersion))
@@ -174,8 +181,8 @@ class SessionRepository(
                 ),
             )
         }
+        // The container drops the previous client's projects and credits when the id changes.
         sessionStore.set(response.clientId, response.accessToken, recoveryKey.trim())
-        cache.clearAll()
         refreshConfig()
         return refreshMe()
     }

@@ -131,6 +131,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -138,3 +139,19 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// A Play upload must never ship the demo backend, an unsigned bundle or a store
+// without products. assembleRelease stays unguarded for local R8 checks.
+val releaseMissing: String = listOfNotNull(
+    "API_BASE_URL in secrets.properties".takeIf { secret("API_BASE_URL", "").isBlank() },
+    "REVENUECAT_API_KEY in secrets.properties".takeIf { secret("REVENUECAT_API_KEY", "").isBlank() },
+    "app/google-services.json".takeIf { !file("google-services.json").exists() },
+    "keystore.properties".takeIf { !keystorePropertiesFile.exists() },
+).joinToString("; ")
+val checkReleaseReadiness = tasks.register("checkReleaseReadiness") {
+    val missing = releaseMissing
+    doLast {
+        if (missing.isNotEmpty()) throw GradleException("A Play bundle needs: $missing. See docs/HANDOFF.md.")
+    }
+}
+tasks.matching { it.name == "bundleRelease" }.configureEach { dependsOn(checkReleaseReadiness) }

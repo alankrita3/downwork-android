@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.raviga.downwork.data.api.ApiException
 import com.raviga.downwork.di.AppContainer
+import com.raviga.downwork.di.AppEvent
 import com.raviga.downwork.ui.nav.Routes
 import com.raviga.downwork.ui.userLine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,14 +25,23 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         val startRoute: String = Routes.HOME,
         val error: String? = null,
         val upgradeRequired: Boolean = false,
+        /** Set when the app must start over at this route with a cleared back stack. */
+        val restartAt: String? = null,
     )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    init { bootstrap() }
+    init {
+        bootstrap()
+        viewModelScope.launch {
+            container.events.collect { if (it is AppEvent.SignedOut) bootstrap(restart = true) }
+        }
+    }
 
-    fun bootstrap() {
+    fun restartConsumed() = _state.update { it.copy(restartAt = null) }
+
+    fun bootstrap(restart: Boolean = false) {
         _state.update { it.copy(error = null) }
         viewModelScope.launch {
             val session = container.session
@@ -41,7 +51,6 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
             val prefs = container.prefs.current()
             try {
                 val me = session.ensureRegistered()
-                container.billing.configure(me.clientId)
                 launch { runCatching { container.push.syncIfNeeded() } }
                 launch { runCatching { container.projects.refreshAll() } }
                 launch { runCatching { container.credits.refresh() } }
@@ -51,7 +60,7 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
                     session.needsLegal(me, config) -> Routes.TERMS
                     else -> Routes.HOME
                 }
-                _state.update { it.copy(ready = true, startRoute = start) }
+                _state.update { it.copy(ready = true, startRoute = start, restartAt = if (restart) start else null) }
             } catch (e: ApiException) {
                 if (e.code == ApiException.UPGRADE_REQUIRED) {
                     _state.update { it.copy(ready = true, upgradeRequired = true) }

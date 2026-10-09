@@ -916,13 +916,14 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
             delivery = DeliveryConfig("521901166785", "DownWorkDeployRole", "ap-south-1"),
             legal = LegalConfig(
                 companyName = "Raviga Apps Private Limited",
-                companyAddress = "Address to be confirmed",
-                termsUrl = "https://downwork.in/terms",
+                companyAddress = "Raviga Apps Private Limited, India",
+                // The backend serves these pages (contract v0.4); demo mode opens the dev copies.
+                termsUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/terms",
                 termsVersion = "2026-10-01",
-                privacyUrl = "https://downwork.in/privacy",
+                privacyUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/privacy",
                 privacyVersion = "2026-10-01",
-                grievance = Grievance("Grievance Officer", "grievance@downwork.in", "Address to be confirmed", 30),
-                supportEmail = "support@downwork.in",
+                grievance = Grievance("Alankrita Sood", "membersupport@miraquill.com", "Raviga Apps Private Limited, India", 15),
+                supportEmail = "support@miraquill.com",
             ),
         )
     }

@@ -20,22 +20,36 @@ class AudioRecorder(private val context: Context) {
 
     val isRecording: Boolean get() = recorder != null
 
-    fun start(): File {
+    /**
+     * Starts a new clip. [onLimit] runs (on the main thread) when the clip hits
+     * [MAX_DURATION_MS] and the platform stops recording by itself. Throws if the
+     * microphone cannot be opened, e.g. another app holds it; nothing leaks then.
+     */
+    fun start(onLimit: () -> Unit = {}): File {
         stopQuietly()
         val dir = File(context.cacheDir, "recordings").apply { mkdirs() }
         val out = File(dir, "capture_${System.currentTimeMillis()}.m4a")
         @Suppress("DEPRECATION")
         val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
-        r.setAudioSource(MediaRecorder.AudioSource.MIC)
-        r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-        r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-        r.setAudioChannels(1)
-        r.setAudioSamplingRate(44_100)
-        r.setAudioEncodingBitRate(96_000)
-        r.setMaxDuration(MAX_DURATION_MS)
-        r.setOutputFile(out.absolutePath)
-        r.prepare()
-        r.start()
+        try {
+            r.setAudioSource(MediaRecorder.AudioSource.MIC)
+            r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            r.setAudioChannels(1)
+            r.setAudioSamplingRate(44_100)
+            r.setAudioEncodingBitRate(96_000)
+            r.setMaxDuration(MAX_DURATION_MS)
+            r.setOnInfoListener { _, what, _ ->
+                if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) onLimit()
+            }
+            r.setOutputFile(out.absolutePath)
+            r.prepare()
+            r.start()
+        } catch (e: Exception) {
+            runCatching { r.release() }
+            out.delete()
+            throw e
+        }
         recorder = r
         file = out
         startedAt = System.currentTimeMillis()
@@ -51,7 +65,7 @@ class AudioRecorder(private val context: Context) {
     fun stop(): Recording? {
         val r = recorder ?: return null
         val out = file
-        val duration = System.currentTimeMillis() - startedAt
+        val duration = (System.currentTimeMillis() - startedAt).coerceAtMost(MAX_DURATION_MS.toLong())
         runCatching { r.stop() }
         runCatching { r.release() }
         recorder = null

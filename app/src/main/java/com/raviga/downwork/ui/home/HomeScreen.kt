@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +55,7 @@ fun HomeScreen(nav: NavController) {
     val balance by vm.balance.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
+    val signedOut by vm.signedOut.collectAsStateWithLifecycle()
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
 
@@ -97,6 +99,18 @@ fun HomeScreen(nav: NavController) {
                         Text("What should we build?", style = DwType.display, color = Ink.ink)
                         Spacer(Modifier.height(16.dp))
                         Text("No projects yet. Tap the microphone and describe what you want built.", style = DwType.body, color = Ink.graphite)
+                        if (signedOut) {
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                "This phone was removed from your DownWork account, so it has started fresh. To bring your projects back, use your recovery key.",
+                                style = DwType.secondary,
+                                color = Ink.graphite,
+                            )
+                            Row {
+                                InlineAction("Use a recovery key", onClick = { vm.dismissSignedOut(); nav.navigate(Routes.RECOVERY) })
+                                InlineAction("Dismiss", onClick = { vm.dismissSignedOut() }, color = Ink.graphite)
+                            }
+                        }
                         if (vm.isDemo) {
                             Spacer(Modifier.height(24.dp))
                             Text("Demo backend: everything works on this phone until the DownWork API is connected.", style = DwType.caption, color = Ink.ash)

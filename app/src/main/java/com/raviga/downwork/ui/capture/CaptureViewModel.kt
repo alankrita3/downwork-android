@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.Locale
 
 /**
@@ -66,6 +65,10 @@ class CaptureViewModel(
     private var audioId: String? = null
     private var languageDetected: String? = null
     private var pendingAfterConsent: (() -> Unit)? = null
+    /** Utterances already moved into the transcript, so "Record more" adds only the new ones. */
+    private var consumedUtterances = 0
+    /** The input saved for this transcript (id, text): a retry after a failed draft must not add it twice. */
+    private var savedInput: Pair<String, String>? = null
 
     fun selectTab(index: Int) {
         if (_state.value.listening) stopListening()
@@ -144,7 +147,7 @@ class CaptureViewModel(
     }
 
     private fun startRecorder() {
-        runCatching { container.recorder.start() }
+        runCatching { container.recorder.start(onLimit = { viewModelScope.launch { onRecorderLimit() } }) }
             .onFailure {
                 _state.update { it.copy(listening = false, error = "Couldn't start the microphone. Type instead.") }
                 stopTimer()
@@ -157,6 +160,12 @@ class CaptureViewModel(
                 delay(50)
             }
         }
+    }
+
+    private fun onRecorderLimit() {
+        if (!_state.value.listening) return
+        stopListening()
+        _state.update { it.copy(error = "Recordings stop at 10 minutes. Tap Done, or record another part.") }
     }
 
     fun stopListening() {
@@ -197,29 +206,39 @@ class CaptureViewModel(
         if (s.usesRecorder) {
             val rec = recording
             if (rec == null) {
-                _state.update { it.copy(error = "Nothing was recorded yet.") }
+                if (s.transcript.isNotBlank()) _state.update { it.copy(phase = Phase.TRANSCRIPT, error = null) }
+                else _state.update { it.copy(error = "Nothing was recorded yet.") }
                 return
             }
+            // Each clip is transcribed once; "Record more" adds the next clip's words to the end.
+            recording = null
             _state.update { it.copy(phase = Phase.TRANSCRIPT, transcribing = true, error = null) }
-            viewModelScope.launch { transcribe(rec.file, (rec.durationMs / 1000).toInt()) }
+            viewModelScope.launch { transcribe(rec) }
         } else {
-            _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = s.committed.joinToString(" ").trim()) }
+            val fresh = s.committed.drop(consumedUtterances).joinToString(" ")
+            consumedUtterances = s.committed.size
+            _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = joinText(it.transcript, fresh)) }
         }
     }
 
-    private suspend fun transcribe(file: File, durationSec: Int) {
+    private suspend fun transcribe(rec: AudioRecorder.Recording) {
         try {
             val id = ensureProject()
-            val (audio, result) = container.projects.transcribe(id, file, durationSec, Locale.getDefault().language) { st ->
+            val (audio, result) = container.projects.transcribe(id, rec.file, (rec.durationMs / 1000).toInt(), Locale.getDefault().language) { st ->
                 _state.update { it.copy(progress = st.progress, progressMessage = st.message) }
             }
             audioId = audio
             languageDetected = result.languageDetected
-            _state.update { it.copy(transcribing = false, transcript = result.transcript, progress = null, progressMessage = null) }
+            rec.file.delete()
+            _state.update { it.copy(transcribing = false, transcript = joinText(it.transcript, result.transcript), progress = null, progressMessage = null) }
         } catch (e: Exception) {
+            // Keep the clip so Done tries it again.
+            if (recording == null) recording = rec
             _state.update { it.copy(transcribing = false, error = e.userLine(), progress = null) }
         }
     }
+
+    private fun joinText(a: String, b: String): String = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 
     fun recordMore() {
         _state.update { it.copy(phase = Phase.CAPTURE, error = null) }
@@ -244,14 +263,25 @@ class CaptureViewModel(
             try {
                 val id = ensureProject()
                 val voice = s.tab == 0
-                container.projects.addInput(
-                    id = id,
-                    kind = if (voice && (audioId != null || !s.usesRecorder)) "voice" else "text",
-                    text = text,
-                    audioId = audioId,
-                    durationSec = if (voice) s.elapsedSec.takeIf { it > 0 } else null,
-                    languageDetected = if (voice) (languageDetected ?: Locale.getDefault().language) else null,
-                )
+                val saved = savedInput
+                when {
+                    saved == null -> {
+                        val project = container.projects.addInput(
+                            id = id,
+                            kind = if (voice && (audioId != null || !s.usesRecorder)) "voice" else "text",
+                            text = text,
+                            audioId = audioId,
+                            durationSec = if (voice) s.elapsedSec.takeIf { it > 0 } else null,
+                            languageDetected = if (voice) (languageDetected ?: Locale.getDefault().language) else null,
+                        )
+                        val inputId = project.inputs.lastOrNull { it.text.trim() == text }?.id ?: project.inputs.lastOrNull()?.id
+                        savedInput = inputId?.let { it to text }
+                    }
+                    saved.second != text -> {
+                        container.projects.editInput(id, saved.first, text)
+                        savedInput = saved.first to text
+                    }
+                }
                 val onProgress: (com.raviga.downwork.data.api.JobState) -> Unit = { st ->
                     _state.update { it.copy(progress = st.progress, progressMessage = st.message ?: it.progressMessage) }
                 }

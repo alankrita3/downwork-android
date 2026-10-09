@@ -20,8 +20,19 @@ suspend inline fun <T> apiCall(json: Json, crossinline block: suspend () -> T): 
 /** What a long-running job is doing right now, for the progress copy. */
 data class JobState(val progress: Float, val message: String?)
 
-/** Polls a [Job] until it settles and decodes its result. 2s for 30s, then 5s. */
+/**
+ * Polls a [Job] until it settles and decodes its result: 2s for 30s, then 5s.
+ * A dropped connection mid-poll is retried (the job keeps running server-side,
+ * and giving up would tempt a second, duplicate job); after [MAX_WAIT_MS] it
+ * stops with [ApiException.JOB_TIMEOUT].
+ */
 class JobRunner(private val api: DownWorkApi, private val json: Json) {
+
+    private companion object {
+        const val MAX_WAIT_MS = 10 * 60 * 1000L
+        const val MAX_POLL_FAILURES = 5
+        val RETRYABLE = setOf(ApiException.NETWORK, ApiException.INTERNAL, ApiException.RATE_LIMITED)
+    }
 
     class JobFailed(val job: Job) : ApiException(
         code = job.error?.code ?: "job_failed",
@@ -37,10 +48,21 @@ class JobRunner(private val api: DownWorkApi, private val json: Json) {
         var job = initial
         val startedAt = System.currentTimeMillis()
         onProgress(job.state())
+        var failures = 0
         while (!job.isDone && !job.isFailed) {
             val elapsed = System.currentTimeMillis() - startedAt
-            delay(if (elapsed < 30_000) 2_000 else 5_000)
-            job = apiCall(json) { api.job(job.jobId) }
+            if (elapsed > MAX_WAIT_MS) {
+                throw ApiException(ApiException.JOB_TIMEOUT, message = "This is taking longer than usual.")
+            }
+            delay(if (elapsed < 30_000) 2_000L else 5_000L)
+            val jobId = job.jobId
+            job = try {
+                apiCall(json) { api.job(jobId) }.also { failures = 0 }
+            } catch (e: ApiException) {
+                if (e.code !in RETRYABLE || ++failures >= MAX_POLL_FAILURES) throw e
+                delay(failures * 2_000L)
+                continue
+            }
             onProgress(job.state())
         }
         if (job.isFailed) throw JobFailed(job)

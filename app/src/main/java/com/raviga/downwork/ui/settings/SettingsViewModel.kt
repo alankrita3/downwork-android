@@ -105,7 +105,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             _state.update { it.copy(busy = true, error = null) }
             runCatching { container.session.recover(key) }
                 .onSuccess {
-                    container.billing.configure(it.clientId)
+                    container.dismissSignedOut()
                     runCatching { container.projects.refreshAll() }
                     runCatching { container.credits.refresh() }
                     _state.update { s -> s.copy(recovered = true, recoveryKey = container.session.recoveryKey) }

@@ -2,7 +2,7 @@ package com.raviga.downwork.data.api
 
 import android.os.Build
 import com.raviga.downwork.BuildConfig
-import com.raviga.downwork.data.local.SessionStore
+import com.raviga.downwork.data.local.SessionTokens
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
@@ -31,16 +31,24 @@ object DeviceInfo {
 }
 
 /**
- * On 401 the token was revoked (another device re-registered, or a deletion).
- * Re-registering with the same installId returns the same clientId and a fresh
- * token, so the app heals itself without bothering the client. Runs on OkHttp's
- * thread, hence the blocking call through a plain client.
+ * On 401 the token was replaced or revoked. Re-registering with the same
+ * installId returns the same clientId and a fresh token, so the app heals
+ * itself without bothering the client. Runs on OkHttp's thread, hence the
+ * blocking call through a plain client.
+ *
+ * If the device itself was revoked (removed from another phone) its installId
+ * no longer maps to the client and the backend answers with a different, new
+ * client. That is a sign-out, not a heal: the new identity is kept (its
+ * recovery key is shown only once), the failed request is not replayed against
+ * it, and [onSignedOut] lets the app start over. With no session at all
+ * (never registered, or wiped after deletion) there is nothing to heal.
  */
 class ReRegisterAuthenticator(
     private val baseUrl: String,
     private val plainClient: OkHttpClient,
     private val json: Json,
-    private val sessionStore: SessionStore,
+    private val sessionStore: SessionTokens,
+    private val onSignedOut: () -> Unit,
 ) : Authenticator {
 
     override fun authenticate(route: Route?, response: Response): Request? {
@@ -49,15 +57,21 @@ class ReRegisterAuthenticator(
         synchronized(this) {
             val failed = response.request.header("Authorization")
             val current = sessionStore.accessToken
-            if (!current.isNullOrBlank() && failed != "Bearer $current") {
+            if (current.isNullOrBlank()) return null
+            if (failed != "Bearer $current") {
                 return response.request.newBuilder().header("Authorization", "Bearer $current").build()
             }
+            val previousClient = sessionStore.clientId
             val fresh = registerBlocking() ?: return null
-            return response.request.newBuilder().header("Authorization", "Bearer $fresh").build()
+            if (fresh.clientId != previousClient) {
+                onSignedOut()
+                return null
+            }
+            return response.request.newBuilder().header("Authorization", "Bearer ${fresh.accessToken}").build()
         }
     }
 
-    private fun registerBlocking(): String? {
+    private fun registerBlocking(): RegisterDeviceResponse? {
         val body = json.encodeToString(RegisterDeviceRequest.serializer(), DeviceInfo.registerRequest(sessionStore.installId))
         val request = Request.Builder()
             .url(baseUrl + "devices/register")
@@ -70,7 +84,7 @@ class ReRegisterAuthenticator(
                 if (!r.isSuccessful) return null
                 val parsed = json.decodeFromString(RegisterDeviceResponse.serializer(), r.body!!.string())
                 sessionStore.set(parsed.clientId, parsed.accessToken, parsed.recoveryKey)
-                parsed.accessToken
+                parsed
             }
         }.getOrNull()
     }

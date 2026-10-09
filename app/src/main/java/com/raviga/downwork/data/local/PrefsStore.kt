@@ -66,6 +66,17 @@ class PrefsStore(private val context: Context) {
     suspend fun setRecoveryKeyShown() = context.dataStore.edit { it[RECOVERY_SHOWN] = true }
     suspend fun clear() = context.dataStore.edit { it.clear() }
 
+    /** Forgets what belonged to the previous client; device-level choices stay. */
+    suspend fun clearClientData() = context.dataStore.edit {
+        it.remove(GITHUB)
+        it.remove(AWS)
+        it.remove(TERMS_VERSION)
+        it.remove(AI_VERSION)
+        it.remove(AI_ALLOWED)
+        it.remove(RECOVERY_SHOWN)
+        it[PUSH_SYNCED] = false
+    }
+
     private companion object {
         val WELCOME_DONE = booleanPreferencesKey("welcome_done")
         val TERMS_VERSION = stringPreferencesKey("terms_version_accepted")

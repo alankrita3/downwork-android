@@ -36,6 +36,10 @@ class CreditsRepository(
         cache.read(CacheStore.CREDITS, CreditsResponse.serializer())?.let { _credits.value = it }
     }
 
+    fun reset() {
+        _credits.value = null
+    }
+
     suspend fun refresh(): CreditsResponse {
         val response = apiCall(json) { api.credits() }
         _credits.value = response
@@ -58,6 +62,8 @@ class CreditsRepository(
     /**
      * Buys a pack. The webhook usually books the credits before the store
      * sheet closes; if the balance has not moved within 10s we ask for a sync.
+     * Success means the credits are on the ledger; [PurchaseOutcome.NotBookedYet]
+     * means the store took the money and the backend has not caught up.
      */
     suspend fun purchase(activity: Activity, pack: CreditPack): PurchaseOutcome {
         val demo = api as? DemoApi
@@ -66,21 +72,22 @@ class CreditsRepository(
             refresh()
             return PurchaseOutcome.Success
         }
-        val before = _credits.value?.balance ?: 0
+        val before = runCatching { refresh().balance }.getOrNull() ?: _credits.value?.balance
         val outcome = billing.purchase(activity, pack.productId)
-        if (outcome is PurchaseOutcome.Success) {
-            var moved = false
-            repeat(5) {
-                delay(2_000)
-                if (runCatching { refresh().balance }.getOrNull()?.let { it != before } == true) { moved = true; return@repeat }
-            }
-            if (!moved) runCatching { sync() }
+        if (outcome !is PurchaseOutcome.Success) return outcome
+        for (attempt in 1..5) {
+            delay(2_000)
+            val now = runCatching { refresh().balance }.getOrNull()
+            if (now != null && before != null && now > before) return PurchaseOutcome.Success
         }
-        return outcome
+        val synced = runCatching { sync() }.getOrNull()
+        return if (synced != null && before != null && synced > before) PurchaseOutcome.Success else PurchaseOutcome.NotBookedYet
     }
 
     suspend fun restore(): Int {
         if (billing.isAvailable) billing.restore()
         return sync()
     }
+
+    val storeReady: Boolean get() = billing.isReady
 }

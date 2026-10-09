@@ -85,7 +85,12 @@ class CreditsViewModel(private val container: AppContainer) : ViewModel() {
                 it.copy(
                     buying = null,
                     error = (outcome as? PurchaseOutcome.Failed)?.message,
-                    notice = if (outcome is PurchaseOutcome.Success) "${pack.total} credits added." else null,
+                    notice = when (outcome) {
+                        PurchaseOutcome.Success -> "${pack.total} credits added."
+                        PurchaseOutcome.Pending -> "Payment pending. Your credits arrive as soon as your bank confirms it."
+                        PurchaseOutcome.NotBookedYet -> "Payment received. Your credits will appear in a minute."
+                        else -> null
+                    },
                 )
             }
         }

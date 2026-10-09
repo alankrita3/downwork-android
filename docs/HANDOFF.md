@@ -15,8 +15,8 @@ are the same credential used by more than one repo.
 | 4 | **Firebase project** with the Android app `com.raviga.downwork` (and `com.raviga.downwork.debug` for debug builds) added; download `google-services.json`; give the backend the service-account JSON for FCM (shared) | `app/google-services.json` (gitignored) | missing |
 | 5 | **Upload key** for Play App Signing: a keystore plus `keystore.properties` with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` | `keystore.properties` (gitignored) | missing; release builds are unsigned until then |
 | 6 | **Production API URL** once the backend deploys prod | `secrets.properties` → `API_BASE_URL` | placeholder |
-| 7 | **Legal pages** hosted at the URLs the backend config returns (currently `https://downwork.in/terms`, `/privacy`), with the version dates used in `/config` (shared) | backend `/config`; the app only opens them | missing |
-| 8 | **Grievance officer** name, email and address, company registered address, response window (shared; DPDP) | backend `/config` → `legal.grievance`, `legal.companyAddress` | placeholders |
+| 7 | **Legal pages**: the backend now serves Terms and Privacy itself (`/v1/legal/terms`, `/v1/legal/privacy`) and `/config` points at them; the app opens whatever `/config` says. Read them once before launch | backend | served; needs your read-through |
+| 8 | **Grievance officer** (you, membersupport@miraquill.com, 15-day response) and support email are live in `/config`. The registered company address is still a stand-in ("Raviga Apps Private Limited, India") | backend `/config` → `legal.companyAddress`, `legal.grievance.address` | address to confirm |
 | 9 | **Play Data safety form** and the microphone / notifications declarations; the app collects voice (processed by OpenAI), project text, device identifier, purchase history | Play Console → App content | to fill |
 | 10 | **AWS role policy** for `DownWorkDeployRole` (currently AdministratorAccess per the backend contract); the Connect AWS screen describes the role in plain words | backend CloudFormation template | to decide |
 
@@ -29,6 +29,11 @@ quote (93 credits, Standard) → submit (document locked, team emailed) → team
 requested → delivered again → AWS done → accepted. Also: versions list and preview, credits ledger, delivery
 targets, AWS connect (external ID issued), settings, privacy screen. All 31 of the iOS session's captured dev
 responses decode with the Android models (`app/src/test/resources/fixtures`).
+
+The minified release build (R8, signed with a local debug key) was also installed and run against dev:
+register → terms → typed description → AI consent → generated brief → quote, all decoding correctly.
+`./gradlew bundleRelease` refuses to build until items 3 to 6 are in place (`checkReleaseReadiness`), so
+a Play upload cannot ship the demo backend by accident; `assembleRelease` stays open for local checks.
 
 Not exercised end to end: voice capture (the emulator has no speech recogniser; on a real phone the platform
 `SpeechRecognizer` drives live dictation and the ink line), store purchases (no RevenueCat key), and push
