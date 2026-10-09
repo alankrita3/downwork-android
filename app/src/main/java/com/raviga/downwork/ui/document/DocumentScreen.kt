@@ -257,8 +257,9 @@ private fun RefusedBlock(reason: String?, supportEmail: String) {
             BodyText(reason)
             Spacer(Modifier.height(8.dp))
         }
+        val appeal = supportEmail.isNotBlank() && !StatusCopy.hasAppeal(reason)
         Text(
-            "Nothing has been charged." + if (supportEmail.isNotBlank()) " If you think this is a mistake, write to $supportEmail." else "",
+            "Nothing has been charged." + if (appeal) " If you think this is a mistake, write to $supportEmail." else "",
             style = DwType.secondary,
             color = Ink.graphite,
         )

@@ -63,6 +63,13 @@ object StatusCopy {
 
     fun mistakeSuffix(): String = if (supportEmail.isBlank()) "" else " If you think this is a mistake, write to $supportEmail."
 
+    /** The server's wording sometimes carries the appeal already; never say it twice. */
+    fun hasAppeal(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        return text.contains("think this is a mistake", ignoreCase = true) ||
+            (supportEmail.isNotBlank() && text.contains(supportEmail, ignoreCase = true))
+    }
+
     /** Maps an API error code to the plain copy the design asks for. */
     fun errorLine(code: String, fallback: String?): String = when (code) {
         "content_rejected" -> fallback ?: "We can't take this on."

@@ -82,6 +82,8 @@ class CaptureViewModel(
     val isAppend: Boolean get() = mode == "append"
 
     private var projectId: String? = initialProjectId.takeIf { it != "new" }
+    /** This capture created [projectId] (it was not opened from an existing project). */
+    private var createdHere = false
     private var listenJob: Job? = null
     private var timerJob: Job? = null
     private var levelJob: Job? = null
@@ -273,6 +275,7 @@ class CaptureViewModel(
                 }
             } catch (e: Exception) {
                 picked.file.delete()
+                dropRefusedEmptyProject(e)
                 _state.update { it.copy(phase = Phase.CAPTURE, transcribing = false, progress = null, progressMessage = null, error = e.userLine()) }
             }
         }
@@ -414,15 +417,34 @@ class CaptureViewModel(
                     _state.update { it.copy(needsConsent = true) }
                     null
                 } else e.userLine()
+                dropRefusedEmptyProject(e)
                 _state.update { it.copy(phase = Phase.TRANSCRIPT, error = line, progress = null, progressMessage = null) }
             }
         }
+    }
+
+    /**
+     * A policy refusal on the first note of a project made in this capture leaves an empty
+     * project the server has marked rejected. Delete it, so an honest rewrite starts fresh.
+     * Strikes still count on the server. Matches iOS.
+     */
+    private suspend fun dropRefusedEmptyProject(e: Exception) {
+        val api = e as? ApiException ?: return
+        if (api.code != ApiException.CONTENT_REJECTED || api.detailString("kind") != "policy") return
+        val id = projectId ?: return
+        if (!createdHere || savedInput != null) return
+        val project = container.projects.cachedProject(id)
+        if (project != null && project.inputs.isNotEmpty()) return
+        runCatching { container.projects.delete(id) }
+        projectId = null
+        createdHere = false
     }
 
     private suspend fun ensureProject(): String {
         projectId?.let { return it }
         val created = container.projects.create()
         projectId = created.id
+        createdHere = true
         return created.id
     }
 

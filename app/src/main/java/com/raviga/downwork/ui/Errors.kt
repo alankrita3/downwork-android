@@ -13,8 +13,7 @@ fun Throwable.userLine(): String = when (this) {
             // The server may already say it; never say it twice.
             code == ApiException.CONTENT_REJECTED && detailString("kind") == "policy" ->
                 StatusCopy.errorLine(code, server).let { line ->
-                    val email = StatusCopy.supportEmail
-                    if (email.isNotBlank() && line.contains(email, ignoreCase = true)) line else line + StatusCopy.mistakeSuffix()
+                    if (StatusCopy.hasAppeal(line)) line else line + StatusCopy.mistakeSuffix()
                 }
             // The terms changed: the app shows them again; the line just says why the action stopped.
             code == ApiException.CONSENT_REQUIRED && detailStrings("missing").any { it == "terms" || it == "privacy" } ->

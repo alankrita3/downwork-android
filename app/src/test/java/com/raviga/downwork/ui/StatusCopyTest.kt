@@ -24,6 +24,8 @@ class StatusCopyTest {
         )
         val already = "Outside our policy. If you think this is a mistake, write to support@example.com."
         assertEquals(already, policy(already).userLine())
+        val phrased = "Outside our policy. If you think this is a mistake, email us."
+        assertEquals(phrased, policy(phrased).userLine())
         StatusCopy.supportEmail = ""
     }
 
