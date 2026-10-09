@@ -38,6 +38,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Schedule
+import com.raviga.downwork.ui.components.PrivacyPromise
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -94,11 +96,15 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                     else -> PrimaryButton("Submit and pay ${quote.credits} credits", loading = state.submitting, onClick = { vm.submit() })
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    "Your brief locks and the team is emailed a summary.",
-                    style = DwType.caption, color = Ink.ash,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Lock, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (state.isResubmit) "Your brief locks again until the team replies." else "Private. We delete your brief from our servers after delivery.",
+                        style = DwType.caption, color = Ink.ash,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         },
     ) { padding ->
@@ -252,6 +258,8 @@ fun QuoteScreen(nav: NavController, projectId: String) {
             }
             Spacer(Modifier.height(6.dp))
             Text("Only needed if you want us to deploy the backend into your own AWS account.", style = DwType.caption, color = Ink.graphite)
+            Spacer(Modifier.height(20.dp))
+            PrivacyPromise()
             Spacer(Modifier.height(32.dp))
         }
     }

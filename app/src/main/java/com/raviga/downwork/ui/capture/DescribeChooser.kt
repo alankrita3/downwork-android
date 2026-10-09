@@ -80,7 +80,10 @@ fun DescribeChoices(projectTitle: String?, onPick: (String) -> Unit, modifier: M
         Spacer(Modifier.height(Dw.tileGap))
         Choice(Picture.Upload, "Upload a document", "A PDF, Word or text file you already have.") { onPick(DescribeWith.UPLOAD) }
         Spacer(Modifier.height(20.dp))
-        PrivacyNote("Your recordings and files never leave your phone. Drafts are kept only on this phone.")
+        PrivacyNote(
+            "Your recordings and files never leave your phone. Drafts are kept only on this phone.",
+            title = "Your idea stays private",
+        )
     }
 }
 

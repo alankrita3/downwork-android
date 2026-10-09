@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -165,9 +167,9 @@ fun ChipRow(modifier: Modifier = Modifier, perRow: Int = Int.MAX_VALUE, content:
     ) { content() }
 }
 
-/** The teal note with a lock: what stays on the phone. */
+/** The teal note with a lock: what stays private. With a [title], the title leads in bold. */
 @Composable
-fun PrivacyNote(text: String, modifier: Modifier = Modifier) {
+fun PrivacyNote(text: String, modifier: Modifier = Modifier, title: String? = null) {
     Row(
         modifier
             .fillMaxWidth()
@@ -176,8 +178,40 @@ fun PrivacyNote(text: String, modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(Icons.Outlined.Lock, contentDescription = null, tint = Ink.tealInk, modifier = Modifier.padding(top = 2.dp).size(16.dp))
+        Icon(Icons.Outlined.Lock, contentDescription = null, tint = Ink.tealInk, modifier = Modifier.padding(top = 3.dp).size(16.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, style = DwType.secondaryMedium, color = Ink.tealInk)
+        Column {
+            if (title != null) {
+                Text(title, style = DwType.bodyMedium, color = Ink.tealInk)
+                Spacer(Modifier.height(4.dp))
+            }
+            Text(text, style = if (title != null) DwType.secondary else DwType.secondaryMedium, color = Ink.tealInk)
+        }
+    }
+}
+
+/** Said once, warmly, right before the client hands over their idea (Quote). */
+@Composable
+fun PrivacyPromise(modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Dw.imageRadius))
+            .background(Ink.tealWash)
+            .semantics(mergeDescendants = true) {}
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SpotIllustration(Picture.Privacy, size = 72.dp)
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text("Your idea stays yours", style = DwType.bodyMedium, color = Ink.tealInk)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "We use your brief only to build this project. We never sell it or use it to train AI, and we delete it from our servers when you accept the delivery.",
+                style = DwType.secondary,
+                color = Ink.tealInk,
+            )
+        }
     }
 }

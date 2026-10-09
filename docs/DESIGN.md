@@ -24,7 +24,8 @@ Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper`
 
 | Picture | Where |
 |---|---|
-| Welcome | `WelcomeScreen`, full bleed under the status bar, 46% of the screen (240 to 440 dp) so the four promises fit above the button |
+| Welcome | `WelcomeScreen` page 1, full bleed under the status bar, 46% of the screen (240 to 440 dp) so the four promises fit above the button |
+| Speak + Type + Upload, Quote, Building, Delivered | Welcome pages 2 to 5 ("Step N of 4"), 34% of the screen (200 to 320 dp); the three thumbnails sit in a row |
 | HomeEmpty | empty `HomeScreen`, 220 dp |
 | Speak / Type / Upload | chooser tiles (`DescribeChoices`), 84 dp thumbnails |
 | Writing | reading a document, writing the brief (Capture and Document), pricing (Quote): 180 to 220 dp spot |
@@ -32,7 +33,7 @@ Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper`
 | Building | `StatusScreen` header while submitted, changes requested, approved or in revision |
 | Delivered | `StatusScreen` header once delivered or accepted, `DeliveryScreen`, `GoLiveScreen` |
 | Credits | beside the balance on `CreditsScreen`, 124 dp |
-| Privacy | Terms ("Before you start" only), Privacy and data |
+| Privacy | Terms ("Before you start" only), Privacy and data, the Quote's privacy promise (72 dp) |
 
 ## Screens → routes
 
@@ -95,18 +96,24 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 
 ## Copy that lives in the app
 
-- Welcome: "Say what you want built." / "Describe it in your own words: say it, type it, or upload a
-  document. We write the brief, quote it and build it." / chips "Working app, delivered fast" (bolt),
-  "Stays on your phone" (lock), "You approve the quote" (marigold dot), "Code handed to you" (teal dot),
-  two per row / "Get started" / "By <company>".
+- Welcome (five swipeable pages, `HorizontalPager`; page dots: current an 18x6 teal pill, others 6x6
+  ruleStrong; "Get started" and "By <company>" pinned on every page): page 1 "Say what you want built." /
+  "Describe it in your own words: say it, type it, or upload a document. We write the brief, quote it and
+  build it." / chips "Working project" (check), "Fast delivery" (bolt), "You approve the quote" (marigold
+  dot), "Code handed to you" (teal dot), two per row (no privacy chip: it's only true until submit). Pages
+  2 to 5, "Step N of 4" in teal: "Describe it your way" / "Say it, type it, or upload a document you
+  already have. We turn it into a clear brief you can edit."; "See the price first" / "You get a quote and
+  a timeline before anything starts. Nothing is charged until you submit."; "We build it" / "Our team
+  builds a working project and keeps you posted here at every step."; "It's yours" / "You get the code, a
+  handover guide and simple steps to make it live."
 - Capture hint: "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
 - Empty home: "What should we build?" / "Describe what you want built: say it, type it, or upload a
   document you already have. We turn it into a brief you can edit, quote it, and build it."
 - Chooser: "Describe your project" ("Whichever is easiest. You can mix them, and edit everything
   after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); tiles Speak ("Talk it
   through in English. We write it up."), Type ("Write or paste a description."), Upload a document ("A
-  PDF, Word or text file you already have."); teal note "Your recordings and files never leave your
-  phone. Drafts are kept only on this phone."
+  PDF, Word or text file you already have."); teal note led by a bold "Your idea stays private", then
+  "Your recordings and files never leave your phone. Drafts are kept only on this phone."
 - Upload tab: "Upload a requirements document" / "A PDF, Word, RTF or text file up to 10 MB. We read
   the text, you check it, and the brief is written from it." / note "It's read on your phone. The file
   never leaves it, and only the text you check is kept, in your draft." / "Choose a file". Reading:
@@ -127,8 +134,11 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 - Quote: "<N> credits" with "about $X", the bracket chip and blurb, "Ready in A to B weeks after
   approval", "Sized for …" (names and platforms keep their capitals), the breakdown tile (ink, teal,
   marigold, ash, ruleStrong, moss), "Assumes", "What happens next" (iOS wording, step 4 mentions the
-  handover guide and making it live), "Where to deliver", footer "Your brief locks and the team is
-  emailed a summary." Resubmit: "You already paid N credits. This adds M credits." / "This returns M
+  handover guide and making it live), "Where to deliver", then the privacy promise (tealWash card, Privacy
+  picture, bold "Your idea stays yours", "We use your brief only to build this project. We never sell it
+  or use it to train AI, and we delete it from our servers when you accept the delivery."); under the
+  button a lock and "Private. We delete your brief from our servers after delivery." (resubmit: "Your
+  brief locks again until the team replies."). Resubmit: "You already paid N credits. This adds M credits." / "This returns M
   credits to your balance." / "No change."
 - Delivery: "Your code is ready." / repository tile / "Handover guide" ("What we built and how to run
   it": `delivery.handoverUrl`, else `<repo>/blob/HEAD/HANDOVER.md`) / "Make it live" ("Steps to put it
