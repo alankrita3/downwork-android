@@ -143,9 +143,9 @@ private fun Intro(heroHeight: Dp) {
             Spacer(Modifier.height(18.dp))
             ChipRow(perRow = 2) {
                 Chip("Working project delivered", icon = Icons.Outlined.Check)
-                Chip("Super fast delivery", icon = Icons.Outlined.Bolt)
-                Chip("You approve the quote", dot = Ink.marigold)
                 Chip("Code handed to you", dot = Ink.teal)
+                Chip("You approve the quote", dot = Ink.marigold)
+                Chip("Super fast delivery", icon = Icons.Outlined.Bolt)
             }
         }
     }

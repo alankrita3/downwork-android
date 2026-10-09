@@ -99,8 +99,9 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 - Welcome (five swipeable pages, `HorizontalPager`; page dots: current an 18x6 teal pill, others 6x6
   ruleStrong; "Get started" and "By <company>" pinned on every page): page 1 "Say what you want built." /
   "Describe it in your own words: say it, type it, or upload a document. We write the brief, quote it and
-  build it." / chips "Working project delivered" (check), "Super fast delivery" (bolt), "You approve the quote" (marigold
-  dot), "Code handed to you" (teal dot), two per row (no privacy chip: it's only true until submit). Pages
+  build it." / chips, in the founder's order, "Working project delivered" (check), "Code handed to you" (teal
+  dot), "You approve the quote" (marigold dot), "Super fast delivery" (bolt), two per row (no privacy chip:
+  it's only true until submit). Pages
   2 to 5, "Step N of 4" in teal: "Describe it your way" / "Say it, type it, or upload a document you
   already have. We turn it into a clear brief you can edit."; "See the price first" / "You get a quote and
   a timeline before anything starts. Nothing is charged until you submit."; "Built by AI, checked by
