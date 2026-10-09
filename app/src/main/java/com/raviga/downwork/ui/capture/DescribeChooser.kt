@@ -74,7 +74,7 @@ fun DescribeChoices(projectTitle: String?, onPick: (String) -> Unit, modifier: M
             color = Ink.graphite,
         )
         Spacer(Modifier.height(24.dp))
-        Choice(Picture.Speak, "Speak", "Talk it through in English. We write it up.") { onPick(DescribeWith.SPEAK) }
+        Choice(Picture.Speak, "Speak", "Talk it through. We write it up.") { onPick(DescribeWith.SPEAK) }
         Spacer(Modifier.height(Dw.tileGap))
         Choice(Picture.Type, "Type", "Write or paste a description.") { onPick(DescribeWith.TYPE) }
         Spacer(Modifier.height(Dw.tileGap))

@@ -114,7 +114,7 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   document you already have. We turn it into a brief you can edit, quote it, and build it."
 - Chooser: "Describe your project" ("Whichever is easiest. You can mix them, and edit everything
   after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); tiles Speak ("Talk it
-  through in English. We write it up."), Type ("Write or paste a description."), Upload a document ("A
+  through. We write it up."), Type ("Write or paste a description."), Upload a document ("A
   PDF, Word or text file you already have."); teal note led by a bold "Your idea stays private", then
   "Your recordings and files never leave your phone. Drafts are kept only on this phone."
 - Upload tab: "Upload a requirements document" / "A PDF, Word, RTF or text file up to 10 MB. We read
