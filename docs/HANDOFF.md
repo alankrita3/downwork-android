@@ -43,6 +43,12 @@ on the phone → re-quoted (95) → resubmitted (9 credits back) → approved �
 deleted the brief and title, and the phone's copy is still readable. Drafts on disk were checked to be
 ciphertext. A PDF and a Word file were read on the phone, in debug and in the R8 release build.
 
+After the rename to Raviga (contract v0.8), the same flow ran on the new raviga-* dev stack from
+`com.raviga.app.debug`: register → terms → AI consent → generated brief → quote (34, Standard) → submit
+(RA-Q88NBG) → approved → delivered (raviga-builds repo, handover link) → the `raviga://project/{id}` link
+opened it → accepted, with the brief kept on the phone after the server deleted its copy. Connect AWS
+showed `RavigaDeployRole` and an `ra-ext-` id. The R8 release build `com.raviga.app` installs and runs.
+
 The minified release build (R8, signed with a local debug key) was also installed and run against dev:
 register → terms → typed description → AI consent → generated brief → quote, all decoding correctly.
 `./gradlew bundleRelease` refuses to build until items 3 to 6 are in place (`checkReleaseReadiness`), so

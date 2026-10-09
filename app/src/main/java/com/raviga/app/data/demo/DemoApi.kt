@@ -765,10 +765,10 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : RavigaApi
             legal = LegalConfig(
                 companyName = "Raviga Apps Private Limited",
                 companyAddress = "Raviga Apps Private Limited, India",
-                // The backend serves these pages (contract v0.4); demo mode opens the dev copies.
-                termsUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/terms",
+                // The dev legal site (contract v0.8); demo mode opens the same pages.
+                termsUrl = "https://d1mi85jr39d7la.cloudfront.net/terms-of-use",
                 termsVersion = "2026-10-10",
-                privacyUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/privacy",
+                privacyUrl = "https://d1mi85jr39d7la.cloudfront.net/privacy-policy",
                 privacyVersion = "2026-10-10",
                 grievance = Grievance("Alankrita Sood", "membersupport@miraquill.com", "Raviga Apps Private Limited, India", 15),
                 supportEmail = "support@miraquill.com",
