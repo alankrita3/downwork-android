@@ -43,6 +43,7 @@ object Routes {
     const val NOTIFICATIONS = "settings/notifications"
 
     /** Where a project opens from the list, by status. Drafts open the document screen, which handles "no brief yet". */
+    /** A submitted project's own screen. Drafts (ids starting "ld_") open the brief. */
     fun forProject(projectId: String, status: String, hasDocument: Boolean = true): String = when (status) {
         "draft" -> document(projectId)
         "submitted", "changes_requested", "approved", "rejected", "cancelled" -> status(projectId)

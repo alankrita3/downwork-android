@@ -45,6 +45,8 @@ fun WelcomeScreen(nav: NavController) {
             Spacer(Modifier.height(24.dp))
             Text("Describe it in your own words: say it, type it, or upload a document.", style = DwType.body, color = Ink.ink)
             Spacer(Modifier.height(8.dp))
+            Text("It stays on your phone until you submit it.", style = DwType.body, color = Ink.ink)
+            Spacer(Modifier.height(8.dp))
             Text("We write it up as a proper brief.", style = DwType.body, color = Ink.ink)
             Spacer(Modifier.height(8.dp))
             Text("You approve, we build and hand over the code.", style = DwType.body, color = Ink.ink)

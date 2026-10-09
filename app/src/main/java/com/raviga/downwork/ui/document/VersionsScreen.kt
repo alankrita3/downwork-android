@@ -17,9 +17,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.raviga.downwork.data.api.Document
-import com.raviga.downwork.data.api.VersionSummary
+import com.raviga.downwork.data.drafts.LocalVersion
 import com.raviga.downwork.ui.LocalAppContainer
 import com.raviga.downwork.ui.components.BodyText
 import com.raviga.downwork.ui.components.BottomBar
@@ -40,36 +41,41 @@ import com.raviga.downwork.ui.userLine
 import com.raviga.downwork.util.Time
 import kotlinx.coroutines.launch
 
-private fun VersionSummary.line(): String {
-    val what = when (source) {
-        "ai" -> "Written by AI"
-        "append" -> changeSummary ?: "Added from your description"
-        "regenerate" -> changeSummary ?: "Regenerated a section"
-        "edit" -> changeSummary ?: "You edited the brief"
-        "restore" -> changeSummary ?: "Restored an earlier version"
-        else -> changeSummary ?: source
+private fun LocalVersion.line(): String {
+    val what = changeSummary.ifBlank {
+        when (source) {
+            "draft" -> "Written by AI"
+            "append" -> "Added from your notes"
+            "regenerate" -> "Regenerated a section"
+            "edit" -> "You edited the brief"
+            "restore" -> "Restored an earlier version"
+            "submitted" -> "The brief you submitted"
+            else -> source
+        }
     }
     return "$what, ${Time.dateTime(createdAt)}"
 }
 
+/** Every version of a brief, kept on this phone only (contract v0.6). */
 @Composable
 fun VersionsScreen(nav: NavController, projectId: String) {
     val container = LocalAppContainer.current
-    var versions by remember { mutableStateOf<List<VersionSummary>?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(projectId) {
-        runCatching { container.projects.versions(projectId) }
-            .onSuccess { versions = it }
-            .onFailure { error = it.userLine() }
-    }
-    val current = container.projects.cachedDocument(projectId)?.version
+    val draft by remember(projectId) { container.drafts.draft(projectId) }.collectAsStateWithLifecycle(container.drafts.get(projectId))
+    val versions = draft?.versions?.reversed().orEmpty()
+    val current = draft?.current?.version
 
     ScreenScaffold(topBar = { DwTopBar(title = "Versions", onBack = { nav.popBackStack() }) }) { padding ->
         when {
-            error != null -> ErrorState(error!!, Modifier.padding(padding))
-            versions == null -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
+            draft == null -> ErrorState("That draft is no longer on this phone.", Modifier.padding(padding))
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                items(versions!!, key = { it.version }) { v ->
+                item {
+                    Text(
+                        "Versions are kept on this phone only.",
+                        style = DwType.caption, color = Ink.graphite,
+                        modifier = Modifier.padding(horizontal = Dw.gutter).padding(bottom = 8.dp),
+                    )
+                }
+                items(versions, key = { it.version }) { v ->
                     DwRow(
                         title = "Version ${v.version}" + if (v.version == current) ", current" else "",
                         subtitle = v.line(),
@@ -86,29 +92,25 @@ fun VersionsScreen(nav: NavController, projectId: String) {
 fun VersionPreviewScreen(nav: NavController, projectId: String, version: Int) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
-    var doc by remember { mutableStateOf<Document?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var restoring by remember { mutableStateOf(false) }
-    val project = container.projects.cachedProject(projectId)
-    val current = container.projects.cachedDocument(projectId)?.version
-    val canRestore = project?.isEditable == true && version != current
-
-    LaunchedEffect(projectId, version) {
-        runCatching { container.projects.version(projectId, version) }
-            .onSuccess { doc = it }
-            .onFailure { error = it.userLine() }
-    }
+    val draft by remember(projectId) { container.drafts.draft(projectId) }.collectAsStateWithLifecycle(container.drafts.get(projectId))
+    val project = draft?.serverProjectId?.let { container.projects.cachedProject(it) }
+    val v = draft?.versions?.firstOrNull { it.version == version }
+    val editable = draft != null && !draft!!.isRefused &&
+        (draft!!.serverProjectId == null || project?.status == com.raviga.downwork.data.api.ProjectStatus.CHANGES_REQUESTED)
+    val canRestore = editable && v != null && version != draft?.current?.version
 
     ScreenScaffold(
         topBar = { DwTopBar(title = "Version $version", onBack = { nav.popBackStack() }) },
         bottomBar = {
-            if (canRestore && doc != null) BottomBar {
+            if (canRestore) BottomBar {
                 InlineNotice(error, Modifier.padding(bottom = 8.dp))
                 PrimaryButton("Restore this version", loading = restoring, onClick = {
                     restoring = true
                     scope.launch {
-                        runCatching { container.projects.restore(projectId, version) }
-                            .onSuccess { nav.popBackStack(Routes.document(projectId), inclusive = false); nav.popBackStack(Routes.VERSIONS, inclusive = true) }
+                        runCatching { container.drafts.restore(projectId, version) }
+                            .onSuccess { nav.popBackStack(Routes.VERSIONS, inclusive = true) }
                             .onFailure { error = it.userLine() }
                         restoring = false
                     }
@@ -116,17 +118,16 @@ fun VersionPreviewScreen(nav: NavController, projectId: String, version: Int) {
             }
         },
     ) { padding ->
-        val d = doc
+        val d = v?.document
         when {
-            error != null && d == null -> ErrorState(error!!, Modifier.padding(padding))
-            d == null -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
+            d == null -> ErrorState("That version is no longer on this phone.", Modifier.padding(padding))
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 item {
                     Column(Modifier.padding(horizontal = Dw.gutter)) {
                         Spacer(Modifier.height(8.dp))
                         Text(d.title.ifBlank { "Untitled project" }, style = DwType.title, color = Ink.ink)
                         Spacer(Modifier.height(8.dp))
-                        Text((d.changeSummary ?: d.source) + ", " + Time.dateTime(d.createdAt), style = DwType.secondary, color = Ink.graphite)
+                        Text(v.line(), style = DwType.secondary, color = Ink.graphite)
                         Spacer(Modifier.height(Dw.sectionGap))
                     }
                 }

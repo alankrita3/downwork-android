@@ -9,7 +9,6 @@ import com.raviga.downwork.data.api.Project
 import com.raviga.downwork.data.api.ProjectsResponse
 import com.raviga.downwork.data.api.Quote
 import com.raviga.downwork.data.api.RegisterDeviceResponse
-import com.raviga.downwork.data.api.VersionsResponse
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -37,21 +36,30 @@ class DtoDecodingTest {
     }
 
     @Test
-    fun `contract example project decodes with document summary`() {
-        val raw = """
-            {"id":"pr_1","ref":"DW-A1B2C3","title":"Tiffin delivery app","status":"draft","createdAt":"2026-10-09T04:30:00Z","updatedAt":"2026-10-09T04:31:00Z",
-             "inputs":[{"id":"in_1","kind":"text","text":"hello","audioId":null,"durationSec":null,"languageDetected":null,"audioExpiresAt":null,"createdAt":"2026-10-09T04:30:00Z"}],
-             "document":{"version":3,"title":"Tiffin delivery app","updatedAt":"2026-10-09T04:31:00Z","locked":false},
-             "quote":null,"lockedVersion":null,"submission":null,"review":{"comments":[],"decidedAt":null},"timeline":null,"delivery":null,
-             "revisions":{"used":0,"included":2,"requests":[]},"unreadComments":0,
-             "history":[{"status":"draft","at":"2026-10-09T04:30:00Z","by":"system","note":""}]}
+    fun `v06 submitted project holds its brief until it closes`() {
+        val held = """
+            {"id":"pr_1","ref":"DW-A1B2C3","title":"Tiffin delivery app","status":"submitted","createdAt":"2026-10-10T04:30:00Z","updatedAt":"2026-10-10T04:31:00Z",
+             "document":{"version":1,"title":"Tiffin delivery app","sections":[{"id":"summary","heading":"Summary","body":"An app.","hint":"What it is"}],"documentHash":"ab12","updatedAt":"2026-10-10T04:31:00Z"},
+             "quote":{"id":"qt_1","credits":48,"inr":48000,"bracketId":"standard","estimatedWorkingDays":30,"timeline":{"minWeeks":4,"maxWeeks":6},"documentHash":"ab12"},
+             "submission":{"submittedAt":"2026-10-10T04:31:00Z","creditsCharged":48},"review":{"comments":[]},
+             "revisions":{"used":0,"included":2,"requests":[]},"unreadComments":0,"history":[{"status":"submitted","at":"2026-10-10T04:31:00Z","by":"client","note":""}]}
         """.trimIndent()
-        val p = json.decodeFromString(Project.serializer(), raw)
+        val p = json.decodeFromString(Project.serializer(), held)
         assertEquals("DW-A1B2C3", p.ref)
-        assertEquals(3, p.document?.version)
-        assertTrue(p.isEditable)
-        assertTrue(p.quoteIsStale)
-        assertEquals("system", p.history.first().by)
+        assertEquals("An app.", p.document?.sections?.single()?.body)
+        assertEquals(48, p.quote?.credits)
+        assertEquals(null, p.contentDeletedAt)
+
+        val closed = """
+            {"id":"pr_1","ref":"DW-A1B2C3","title":"","status":"accepted","document":null,"contentDeletedAt":"2026-11-10T00:00:00Z",
+             "quote":{"id":"qt_1","credits":48,"bracketId":"standard","estimatedWorkingDays":30},
+             "delivery":{"repoUrl":"https://github.com/x/y","deliveredAt":"2026-11-01T00:00:00Z","note":""},
+             "history":[{"status":"accepted","at":"2026-11-10T00:00:00Z","by":"client","note":""}]}
+        """.trimIndent()
+        val c = json.decodeFromString(Project.serializer(), closed)
+        assertEquals("2026-11-10T00:00:00Z", c.contentDeletedAt)
+        assertEquals(null, c.document)
+        assertEquals("", c.title)
     }
 
     @Test
@@ -113,7 +121,6 @@ class DtoDecodingTest {
                     name == "aws-connect" -> json.decodeFromString(com.raviga.downwork.data.api.AwsConnectInfo.serializer(), text)
                     name.startsWith("projects") -> json.decodeFromString(ProjectsResponse.serializer(), text)
                     name.startsWith("project") -> json.decodeFromString(Project.serializer(), text).also { assertNotNull(it.id) }
-                    name.startsWith("versions") -> json.decodeFromString(VersionsResponse.serializer(), text)
                     name.startsWith("document") -> json.decodeFromString(Document.serializer(), text).also { assertEquals(12, it.sections.size) }
                     name.startsWith("quote") -> json.decodeFromString(Quote.serializer(), text).also { assertTrue(it.credits > 0) }
                     name.startsWith("register") -> json.decodeFromString(RegisterDeviceResponse.serializer(), text)

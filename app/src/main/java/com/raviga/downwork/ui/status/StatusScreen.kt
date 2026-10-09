@@ -91,7 +91,7 @@ fun StatusScreen(nav: NavController, projectId: String) {
             project == null -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
             else -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
                 Spacer(Modifier.height(8.dp))
-                Text(project.title.ifBlank { "Untitled project" }, style = DwType.title, color = Ink.ink)
+                Text(StatusCopy.projectTitle(project, container.drafts.get(project.id)?.displayTitle), style = DwType.title, color = Ink.ink)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusMark(project.status)

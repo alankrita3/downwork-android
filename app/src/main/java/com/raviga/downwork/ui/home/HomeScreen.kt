@@ -54,7 +54,7 @@ import com.raviga.downwork.ui.theme.Ink
 fun HomeScreen(nav: NavController) {
     val container = LocalAppContainer.current
     val vm: HomeViewModel = viewModel { HomeViewModel(container) }
-    val summaries by vm.summaries.collectAsStateWithLifecycle()
+    val summaries by vm.rows.collectAsStateWithLifecycle()
     val loadedOnce by vm.loadedOnce.collectAsStateWithLifecycle()
     val balance by vm.balance.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
@@ -139,18 +139,22 @@ fun HomeScreen(nav: NavController) {
                             modifier = Modifier.padding(horizontal = Dw.gutter).padding(top = 32.dp, bottom = 20.dp),
                         )
                     }
-                    items(summaries, key = { it.id }) { s ->
+                    items(summaries, key = { it.id }) { row ->
                         val subtitle = buildString {
-                            append(StatusCopy.rowLine(s))
-                            if (s.unreadComments > 0) append(" · ${s.unreadComments} new")
+                            append(row.line)
+                            if (row.unread > 0) append(" · ${row.unread} new")
                         }
                         DwRow(
-                            title = s.title.ifBlank { "Untitled project" },
+                            title = row.title,
                             subtitle = subtitle,
-                            subtitleColor = if (s.unreadComments > 0) Ink.cobalt else Ink.graphite,
-                            onClick = { nav.navigate(Routes.forProject(s.id, s.status)) },
+                            subtitleColor = when {
+                                row.refused -> Ink.brick
+                                row.unread > 0 -> Ink.cobalt
+                                else -> Ink.graphite
+                            },
+                            onClick = { nav.navigate(row.route) },
                             chevron = false,
-                            trailing = { StatusMark(s.status) },
+                            trailing = { StatusMark(if (row.refused) ProjectStatus.REJECTED else row.status) },
                         )
                     }
                     item { Spacer(Modifier.fillMaxWidth().height(24.dp)) }

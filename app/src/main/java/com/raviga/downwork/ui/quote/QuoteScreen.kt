@@ -48,14 +48,15 @@ fun QuoteScreen(nav: NavController, projectId: String) {
     val quote = state.quote
     val config = state.config
 
-    LaunchedEffect(state.submitted) {
-        if (state.submitted) nav.navigate(Routes.status(projectId)) { popUpTo(Routes.HOME); launchSingleTop = true }
+    LaunchedEffect(state.submittedProjectId) {
+        val id = state.submittedProjectId ?: return@LaunchedEffect
+        nav.navigate(Routes.status(id)) { popUpTo(Routes.HOME); launchSingleTop = true }
     }
 
     ScreenScaffold(
         topBar = { DwTopBar(onBack = { nav.popBackStack() }) },
         bottomBar = {
-            if (quote == null || state.quoting || state.project?.isRejected == true) return@ScreenScaffold
+            if (quote == null || state.quoting || state.rejected) return@ScreenScaffold
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 when {
@@ -88,10 +89,10 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                 Text("A quote takes about half a minute.", style = DwType.caption, color = Ink.graphite)
                 return@Column
             }
-            if (state.project?.isRejected == true) {
+            if (state.rejected) {
                 Spacer(Modifier.height(32.dp))
                 Text("We can't take this project on", style = DwType.heading, color = Ink.ink)
-                InlineNotice(state.error ?: state.project?.screening?.reason, color = Ink.graphite)
+                InlineNotice(state.error ?: state.refusalReason, color = Ink.graphite)
                 Spacer(Modifier.height(16.dp))
                 TertiaryButton("Back to the brief", onClick = { nav.popBackStack() })
                 return@Column

@@ -128,6 +128,10 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.revenuecat.purchases)
+    // Documents are read on the phone (local-first): text PDFs via PDFBox, scans via
+    // ML Kit's on-device recogniser (model delivered by Play services; text never leaves).
+    implementation(libs.pdfbox.android)
+    implementation(libs.mlkit.text.recognition)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

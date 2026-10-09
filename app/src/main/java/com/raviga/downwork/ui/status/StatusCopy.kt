@@ -70,6 +70,13 @@ object StatusCopy {
             (supportEmail.isNotBlank() && text.contains(supportEmail, ignoreCase = true))
     }
 
+    /**
+     * A project's name. The server deletes the title when a project closes (contract v0.6),
+     * so this phone's copy of the brief names it, else its reference does.
+     */
+    fun projectTitle(project: Project, localTitle: String?): String =
+        project.title.ifBlank { localTitle.orEmpty() }.ifBlank { if (project.ref.isNotBlank()) "Project ${project.ref}" else "Untitled project" }
+
     /** Maps an API error code to the plain copy the design asks for. */
     fun errorLine(code: String, fallback: String?): String = when (code) {
         // The server's message is final copy, including where to appeal (backend owns that sentence).

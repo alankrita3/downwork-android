@@ -122,7 +122,7 @@ fun CaptureScreen(nav: NavController, projectId: String, mode: String, tab: Stri
     }
 
     BackHandler(enabled = state.phase != CaptureViewModel.Phase.CAPTURE) {
-        if (state.phase == CaptureViewModel.Phase.TRANSCRIPT && !state.transcribing) vm.recordMore()
+        if (state.phase == CaptureViewModel.Phase.TRANSCRIPT && !state.reading) vm.recordMore()
     }
 
     AnimatedContent(targetState = state.phase, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "phase") { phase ->
@@ -178,7 +178,7 @@ private fun CapturePhase(
     fileMaxBytes: Long,
 ) {
     val canFinish = when (state.tab) {
-        CaptureViewModel.TAB_SPEAK -> state.hasSpeech || (state.usesRecorder && state.elapsedSec > 0)
+        CaptureViewModel.TAB_SPEAK -> state.hasSpeech
         CaptureViewModel.TAB_TYPE -> state.typed.isNotBlank()
         else -> false
     }
@@ -214,15 +214,21 @@ private fun CapturePhase(
                     InlineNotice(state.error)
                 }
             } else if (state.tab == CaptureViewModel.TAB_SPEAK) {
+                val speech = state.speech
                 // Dictation lands above the ink line; the newest sentence in ink, earlier ones in graphite.
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), reverseScrolling = true)) {
-                    if (!state.hasSpeech && !state.listening) {
+                    if (speech is CaptureViewModel.Speech.Unavailable || speech is CaptureViewModel.Speech.NotYet) {
+                        val message = (speech as? CaptureViewModel.Speech.Unavailable)?.message ?: (speech as CaptureViewModel.Speech.NotYet).message
+                        Text(message, style = DwType.dictation.copy(fontStyle = FontStyle.Italic), color = Ink.graphite)
+                        Spacer(Modifier.height(16.dp))
+                        Row {
+                            com.raviga.downwork.ui.components.InlineAction("Type instead", onClick = { vm.selectTab(CaptureViewModel.TAB_TYPE) })
+                            com.raviga.downwork.ui.components.InlineAction("Upload a document", onClick = { vm.selectTab(CaptureViewModel.TAB_UPLOAD) })
+                        }
+                    } else if (!state.hasSpeech && !state.listening) {
                         Text(HINT, style = DwType.dictation.copy(fontStyle = FontStyle.Italic), color = Ink.ash)
-                    } else if (state.usesRecorder) {
-                        Text(
-                            if (state.listening) "Listening. Speak freely; we will write it down when you stop." else "Recorded ${formatTime(state.elapsedSec)}. Tap Done to hear it back as text, or record more.",
-                            style = DwType.dictation, color = if (state.listening) Ink.ink else Ink.graphite,
-                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text("Your voice is turned into text on this phone. No recording is kept or sent.", style = DwType.caption, color = Ink.graphite)
                     } else {
                         state.committed.dropLast(if (state.partial.isBlank()) 1 else 0).forEach {
                             Text(it, style = DwType.dictation, color = Ink.graphite)
@@ -240,7 +246,12 @@ private fun CapturePhase(
                 InlineNotice(state.error)
                 Spacer(Modifier.height(16.dp))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    MicButton(recording = state.listening, onClick = onMic, icon = Icons.Outlined.Mic)
+                    MicButton(
+                        recording = state.listening,
+                        onClick = { if (speech is CaptureViewModel.Speech.NotYet) vm.checkSpeech() else onMic() },
+                        icon = Icons.Outlined.Mic,
+                        enabled = speech is CaptureViewModel.Speech.Ready || speech is CaptureViewModel.Speech.NotYet,
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 when {
@@ -277,7 +288,7 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                     CaptureViewModel.TAB_TYPE -> "Here's your description"
                     else -> "Here's what we heard"
                 },
-                onBack = { if (!state.transcribing) vm.recordMore() },
+                onBack = { if (!state.reading) vm.recordMore() },
             )
         },
         bottomBar = {
@@ -285,7 +296,7 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 PrimaryButton(
                     if (vm.isAppend) "Looks right, add it to the brief" else "Looks right, write the brief",
-                    enabled = !state.transcribing && state.transcript.isNotBlank(),
+                    enabled = !state.reading && state.transcript.isNotBlank(),
                     onClick = { vm.writeBrief() },
                 )
                 Spacer(Modifier.height(8.dp))
@@ -295,7 +306,7 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                         CaptureViewModel.TAB_UPLOAD -> "Choose another file"
                         else -> "Edit what I typed"
                     },
-                    enabled = !state.transcribing,
+                    enabled = !state.reading,
                     onClick = { vm.recordMore() },
                 )
             }
@@ -303,7 +314,7 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
             Spacer(Modifier.height(8.dp))
-            if (state.transcribing) {
+            if (state.reading) {
                 ProgressRule()
                 Spacer(Modifier.height(12.dp))
                 Text(state.progressMessage ?: "Listening back", style = DwType.secondary, color = Ink.graphite)

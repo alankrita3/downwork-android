@@ -1,91 +1,6 @@
 package com.raviga.downwork.data.demo
 
-import com.raviga.downwork.data.api.AcceptanceConfig
-import com.raviga.downwork.data.api.AddInputRequest
-import com.raviga.downwork.data.api.AiConfig
-import com.raviga.downwork.data.api.AiConsent
-import com.raviga.downwork.data.api.ApiErrorBody
-import com.raviga.downwork.data.api.ApiException
-import com.raviga.downwork.data.api.AppConfig
-import com.raviga.downwork.data.api.AwsConnectInfo
-import com.raviga.downwork.data.api.AwsDelivery
-import com.raviga.downwork.data.api.AwsTarget
-import com.raviga.downwork.data.api.Bracket
-import com.raviga.downwork.data.api.BreakdownItem
-import com.raviga.downwork.data.api.Comment
-import com.raviga.downwork.data.api.CommentsResponse
-import com.raviga.downwork.data.api.Complexity
-import com.raviga.downwork.data.api.ConsentRequest
-import com.raviga.downwork.data.api.ConsentState
-import com.raviga.downwork.data.api.ConsentVersion
-import com.raviga.downwork.data.api.CreateProjectRequest
-import com.raviga.downwork.data.api.CreditPack
-import com.raviga.downwork.data.api.CreditsBalance
-import com.raviga.downwork.data.api.CreditsConfig
-import com.raviga.downwork.data.api.CreditsResponse
-import com.raviga.downwork.data.api.DeleteMeRequest
-import com.raviga.downwork.data.api.DeleteMeResponse
-import com.raviga.downwork.data.api.Delivery
-import com.raviga.downwork.data.api.DeliveryConfig
-import com.raviga.downwork.data.api.DeliveryTargets
-import com.raviga.downwork.data.api.DeliveryTargetsRequest
-import com.raviga.downwork.data.api.Document
-import com.raviga.downwork.data.api.DownWorkApi
-import com.raviga.downwork.data.api.Empty
-import com.raviga.downwork.data.api.ExportResult
-import com.raviga.downwork.data.api.Grievance
-import com.raviga.downwork.data.api.HealthResponse
-import com.raviga.downwork.data.api.HistoryEntry
-import com.raviga.downwork.data.api.InstructionRequest
-import com.raviga.downwork.data.api.Job
-import com.raviga.downwork.data.api.JobEnvelope
-import com.raviga.downwork.data.api.LedgerEntry
-import com.raviga.downwork.data.api.LedgerRef
-import com.raviga.downwork.data.api.LegalConfig
-import com.raviga.downwork.data.api.LimitsConfig
-import com.raviga.downwork.data.api.LinkCodeResponse
-import com.raviga.downwork.data.api.Me
-import com.raviga.downwork.data.api.Milestone
-import com.raviga.downwork.data.api.NewCommentRequest
-import com.raviga.downwork.data.api.PatchInputRequest
-import com.raviga.downwork.data.api.PatchProjectRequest
-import com.raviga.downwork.data.api.Project
-import com.raviga.downwork.data.api.ProjectInput
-import com.raviga.downwork.data.api.ExtractResult
-import com.raviga.downwork.data.api.FileUploadUrlRequest
-import com.raviga.downwork.data.api.FileUploadUrlResponse
-import com.raviga.downwork.data.api.InputScreening
-import com.raviga.downwork.data.api.ProjectScreening
-import com.raviga.downwork.data.api.ProjectStatus
-import com.raviga.downwork.data.api.ProjectSummary
-import com.raviga.downwork.data.api.ProjectsResponse
-import com.raviga.downwork.data.api.PushTokenRequest
-import com.raviga.downwork.data.api.Quote
-import com.raviga.downwork.data.api.QuoteConfig
-import com.raviga.downwork.data.api.QuoteTimeline
-import com.raviga.downwork.data.api.RecoverDeviceRequest
-import com.raviga.downwork.data.api.RecoveryKeyResponse
-import com.raviga.downwork.data.api.RegisterDeviceRequest
-import com.raviga.downwork.data.api.RegisterDeviceResponse
-import com.raviga.downwork.data.api.ResubmitRequest
-import com.raviga.downwork.data.api.RetentionConfig
-import com.raviga.downwork.data.api.Review
-import com.raviga.downwork.data.api.RevisionRequest
-import com.raviga.downwork.data.api.RevisionRequestBody
-import com.raviga.downwork.data.api.Revisions
-import com.raviga.downwork.data.api.RevisionsConfig
-import com.raviga.downwork.data.api.SaveDocumentRequest
-import com.raviga.downwork.data.api.SubmitRequest
-import com.raviga.downwork.data.api.Submission
-import com.raviga.downwork.data.api.SyncResponse
-import com.raviga.downwork.data.api.Timeline
-import com.raviga.downwork.data.api.TranscribeRequest
-import com.raviga.downwork.data.api.TranscriptResult
-import com.raviga.downwork.data.api.Transfer
-import com.raviga.downwork.data.api.UploadUrlRequest
-import com.raviga.downwork.data.api.UploadUrlResponse
-import com.raviga.downwork.data.api.VersionSummary
-import com.raviga.downwork.data.api.VersionsResponse
+import com.raviga.downwork.data.api.*
 import com.raviga.downwork.data.local.CacheStore
 import com.raviga.downwork.util.Time
 import kotlinx.coroutines.sync.Mutex
@@ -119,12 +34,18 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         val deliveryTargets: DeliveryTargets = DeliveryTargets(),
         val pushToken: String? = null,
         val projects: Map<String, Project> = emptyMap(),
-        val documents: Map<String, List<Document>> = emptyMap(),
+        /** quoteToken → the quote and the hash of the exact brief it priced (single use). */
+        val quotes: Map<String, DemoQuote> = emptyMap(),
+        /** Idempotency-Key → project id, so a retried submit replays instead of charging twice. */
+        val submits: Map<String, String> = emptyMap(),
         val ledger: List<LedgerEntry> = emptyList(),
         val resubmitted: Set<String> = emptySet(),
         val statusChangedAt: Map<String, String> = emptyMap(),
         val unread: Map<String, Int> = emptyMap(),
     )
+
+    @Serializable
+    private data class DemoQuote(val quote: Quote, val documentHash: String, val used: Boolean = false)
 
     private class DemoJob(
         val id: String,
@@ -195,7 +116,19 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
 
     private fun transition(s: State, project: Project, status: String, by: String, note: String = ""): Pair<State, Project> {
         val now = Time.nowIso()
-        val p = project.copy(status = status, history = project.history + HistoryEntry(status, now, by, note))
+        var p = project.copy(status = status, history = project.history + HistoryEntry(status, now, by, note))
+        // v0.6: closing deletes the brief and everything written about it; dates and counts stay.
+        if (status in config.retention.briefDeletedOn) {
+            p = p.copy(
+                document = null,
+                title = "",
+                review = p.review.copy(comments = emptyList()),
+                revisions = p.revisions.copy(requests = emptyList()),
+                history = p.history.map { it.copy(note = "") },
+                delivery = p.delivery?.copy(note = ""),
+                contentDeletedAt = now,
+            )
+        }
         val withMilestones = p.copy(timeline = p.timeline?.copy(milestones = milestones(status, p)))
         return put(s, withMilestones).copy(statusChangedAt = s.statusChangedAt + (p.id to now)) to withMilestones
     }
@@ -226,14 +159,20 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         )
     }
 
-    private fun requireEditable(p: Project) {
-        if (!p.isEditable) throw ApiException(
-            ApiException.DOCUMENT_LOCKED, 423, "This brief is locked because it has been submitted.",
-            details = buildJsonObject { put("lockedVersion", p.lockedVersion ?: 0) },
-        )
+    /** Stand-in for the server's hash over the normalised brief. */
+    private fun hashOf(doc: DocumentBody): String {
+        val normal = doc.title.trim() + "\n" + doc.sections.sortedBy { it.id }.joinToString("\n") { it.id + ":" + it.body.trim().replace(Regex("\\s+"), " ") }
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(normal.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }.take(32)
     }
 
-    private fun currentDoc(s: State, id: String): Document? = s.documents[id]?.maxByOrNull { it.version }
+    /** A request brief with the server's headings and hints filled back in. */
+    private fun fullDocument(body: DocumentBody): Document = Document(
+        title = body.title,
+        sections = SectionIds.ordered.map { id ->
+            Section(id = id, heading = SectionIds.headings[id] ?: id, body = body.sections.firstOrNull { it.id == id }?.body.orEmpty())
+        },
+    )
 
     // ----- lifecycle simulation -----
 
@@ -405,7 +344,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
 
     override suspend fun projects(before: String?, limit: Int): ProjectsResponse = mutate { s ->
         var next = s
-        val advanced = s.projects.values.map { p -> val (n, a) = advance(next, p); next = n; a }
+        val advanced = s.projects.values.filter { it.status != ProjectStatus.DRAFT }.map { p -> val (n, a) = advance(next, p); next = n; a }
         next to ProjectsResponse(
             advanced.sortedByDescending { it.updatedAt ?: "" }.map {
                 ProjectSummary(it.id, it.ref, it.title, it.status, it.createdAt, it.updatedAt, it.quote?.credits, it.timeline?.estimatedDeliveryDate, it.unreadComments)
@@ -413,38 +352,9 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         )
     }
 
-    override suspend fun createProject(body: CreateProjectRequest): Project = mutate { s ->
-        requireConsent(s)
-        val now = Time.nowIso()
-        val p = Project(
-            id = "pr_" + UUID.randomUUID().toString().replace("-", "").take(10),
-            ref = "DW-" + UUID.randomUUID().toString().replace("-", "").take(6).uppercase(),
-            title = body.title.trim(),
-            status = ProjectStatus.DRAFT,
-            createdAt = now,
-            updatedAt = now,
-            revisions = Revisions(used = 0, included = config.revisions.includedRounds),
-            history = listOf(HistoryEntry(ProjectStatus.DRAFT, now, "system")),
-        )
-        put(s, p, touch = false) to p
-    }
-
     override suspend fun project(id: String): Project = mutate { s ->
         val (next, p) = advance(s, requireProject(s, id))
         next to p
-    }
-
-    override suspend fun patchProject(id: String, body: PatchProjectRequest): Project = mutate { s ->
-        val p = requireProject(s, id)
-        if (ProjectStatus.isTerminal(p.status)) throw ApiException(ApiException.INVALID_STATE, 409, "This project is closed.")
-        val next = p.copy(title = body.title.trim())
-        put(s, next) to next
-    }
-
-    override suspend fun deleteProject(id: String) = mutate { s ->
-        val p = requireProject(s, id)
-        if (p.status != ProjectStatus.DRAFT) throw ApiException(ApiException.INVALID_STATE, 409, "Only drafts can be deleted.")
-        s.copy(projects = s.projects - id, documents = s.documents - id) to Unit
     }
 
     override suspend fun cancelProject(id: String, body: Empty): Project = mutate { s ->
@@ -456,72 +366,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         transition(next, p, ProjectStatus.CANCELLED, "client")
     }
 
-    // ----- inputs -----
-
-    override suspend fun audioUploadUrl(id: String, body: UploadUrlRequest): UploadUrlResponse = readState { s ->
-        requireConsent(s)
-        requireEditable(requireProject(s, id))
-        UploadUrlResponse(audioId = "au_" + UUID.randomUUID().toString().take(8), uploadUrl = DEMO_UPLOAD_URL, headers = mapOf("Content-Type" to body.contentType))
-    }
-
-    // ----- document uploads (contract v0.5) -----
-
-    private class DemoUpload(val projectId: String, val fileName: String, val contentType: String) {
-        @Volatile var file: java.io.File? = null
-        @Volatile var pageCount: Int? = null
-        @Volatile var used = false
-    }
-
-    private val uploads = java.util.concurrent.ConcurrentHashMap<String, DemoUpload>()
-
-    /** Stands in for the presigned PUT: the demo reads the local copy directly. */
-    fun demoReceiveUpload(fileId: String, file: java.io.File) {
-        uploads[fileId]?.file = file
-    }
-
-    override suspend fun fileUploadUrl(id: String, body: FileUploadUrlRequest): FileUploadUrlResponse = readState { s ->
-        requireConsent(s)
-        requireEditable(requireProject(s, id))
-        if (body.contentType !in config.limits.acceptedFileTypes) {
-            throw ApiException(ApiException.FILE_UNSUPPORTED, 415, "DownWork can read PDF, Word (.docx), text, Markdown and RTF files.")
-        }
-        if (body.bytes > config.limits.fileMaxBytes) {
-            throw ApiException(ApiException.INVALID_ARGUMENT, 400, "Files can be up to ${config.limits.fileMaxBytes / 1_048_576} MB.")
-        }
-        val fileId = "fl_" + UUID.randomUUID().toString().take(8)
-        uploads[fileId] = DemoUpload(id, body.fileName, body.contentType)
-        FileUploadUrlResponse(fileId = fileId, uploadUrl = "$DEMO_UPLOAD_URL/$fileId", headers = mapOf("Content-Type" to body.contentType))
-    }
-
-    override suspend fun extractFile(id: String, fileId: String): JobEnvelope =
-        startJob("extract", id, listOf("Opening the file", "Reading the text"), 900) {
-            val up = uploads[fileId] ?: throw ApiException(ApiException.NOT_FOUND, 404, "That upload has expired. Choose the file again.")
-            val file = up.file ?: throw ApiException(ApiException.FILE_UNREADABLE, 422, "The upload didn't arrive. Try again.")
-            val read = DemoFileReader.read(file, up.contentType)
-            if (read.text.isBlank()) {
-                throw ApiException(ApiException.FILE_UNREADABLE, 422, "We couldn't find any text in that file. If it's a scan, type or paste the important parts instead.")
-            }
-            val max = config.limits.textInputMaxChars
-            val truncated = read.text.length > max
-            val clean = demoRedact(read.text.take(max))
-            up.pageCount = read.pageCount
-            val notices = listOfNotNull(
-                "Only the first part fit. Add the rest as another note.".takeIf { truncated },
-                clean.second,
-            )
-            json.encodeToJsonElement(
-                ExtractResult.serializer(),
-                ExtractResult(fileId, up.fileName, clean.first, read.pageCount, truncated, notices.joinToString(" ").ifBlank { null }),
-            )
-        }
-
-    /** The demo's stand-in for server screening: redact secrets, refuse a few obvious misuses. */
-    private fun demoRedact(text: String): Pair<String, String?> {
-        val findings = com.raviga.downwork.data.screening.SensitiveScan.scan(text)
-        if (findings.isEmpty()) return text to null
-        val what = findings.map { it.kind.phrase }.distinct().joinToString(" and ")
-        return com.raviga.downwork.data.screening.SensitiveScan.redact(text, findings) to "We removed $what from this note."
-    }
+    // ----- stateless AI (contract v0.6): text in, brief out, nothing kept -----
 
     private fun demoPolicyHit(text: String): Boolean =
         listOf("phishing", "malware", "stalkerware", "keylogger").any { it in text.lowercase() }
@@ -530,293 +375,184 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
     private fun policyRefusal(message: String) = ApiException(
         ApiException.CONTENT_REJECTED, 422,
         "$message If you think this is a mistake, write to ${config.legal.supportEmail}.",
-        kotlinx.serialization.json.buildJsonObject { put("kind", kotlinx.serialization.json.JsonPrimitive("policy")) },
+        buildJsonObject { put("kind", "policy") },
     )
 
-    private fun demoScreen(text: String) {
-        val t = text.lowercase()
-        if (demoPolicyHit(t)) throw policyRefusal("This isn't something DownWork can build. It falls outside our Acceptable use policy.")
-        else if (t.trim().length < 12) {
-            throw ApiException(
+    /** The demo's stand-in for screening inside the AI jobs. */
+    private fun screenInputs(inputs: List<AiInput>) {
+        inputs.forEachIndexed { i, input ->
+            if (demoPolicyHit(input.text)) throw policyRefusal("This isn't something DownWork can build. It falls outside our Acceptable use policy.")
+            if (input.text.trim().length < 12) throw ApiException(
                 ApiException.CONTENT_REJECTED, 422,
                 "That's too short for us to work with. Say a little more about what it should do.",
-                kotlinx.serialization.json.buildJsonObject {
-                    put("kind", kotlinx.serialization.json.JsonPrimitive("quality"))
-                    put("check", kotlinx.serialization.json.JsonPrimitive("too_short"))
-                },
+                buildJsonObject { put("kind", "quality"); put("check", "too_short"); put("inputIndex", i) },
             )
         }
     }
 
-    override suspend fun transcribe(id: String, body: TranscribeRequest): JobEnvelope =
-        startJob("transcribe", id, listOf("Listening back"), 1_500) {
-            json.encodeToJsonElement(
-                TranscriptResult.serializer(),
-                TranscriptResult(transcript = "(Demo mode cannot transcribe recordings. Use live dictation or type your description, or point the app at the real backend.)", languageDetected = "en", durationSec = 0),
+    /** Redacts secrets the way the server does and says which input they were in. */
+    private fun redacted(inputs: List<AiInput>): Pair<List<String>, List<String>> {
+        val notices = mutableListOf<String>()
+        val texts = inputs.mapIndexed { i, input ->
+            val found = com.raviga.downwork.data.screening.SensitiveScan.scan(input.text)
+            if (found.isNotEmpty()) {
+                notices += "We removed ${found.map { it.kind.phrase }.distinct().joinToString(" and ")} from input ${i + 1}."
+                com.raviga.downwork.data.screening.SensitiveScan.redact(input.text, found)
+            } else input.text
+        }
+        return texts to notices
+    }
+
+    private fun aiResult(title: String, sections: List<Section>, summary: String, notices: List<String>): JsonElement =
+        json.encodeToJsonElement(AiDocumentResult.serializer(), AiDocumentResult(AiDocument(title, sections, summary), notices))
+
+    override suspend fun aiDraft(body: AiDraftRequest): JobEnvelope {
+        readState { requireConsent(it) }
+        return startJob("draft", null, listOf("Reading your notes", "Finding the features", "Writing the brief"), 1_100) {
+            screenInputs(body.inputs)
+            val (texts, notices) = redacted(body.inputs)
+            val draft = BriefWriter.write(texts)
+            aiResult(body.title?.ifBlank { null } ?: draft.title, draft.sections, "Written from your notes", notices)
+        }
+    }
+
+    override suspend fun aiAppend(body: AiAppendRequest): JobEnvelope {
+        readState { requireConsent(it) }
+        return startJob("append", null, listOf("Reading your notes", "Adding to the brief"), 1_100) {
+            screenInputs(body.inputs)
+            val (texts, notices) = redacted(body.inputs)
+            val current = fullDocument(body.document)
+            aiResult(current.title, BriefWriter.append(current, texts), "Added from your new notes", notices)
+        }
+    }
+
+    override suspend fun aiRegenerate(body: AiRegenerateRequest): JobEnvelope {
+        readState { requireConsent(it) }
+        return startJob("regenerate", null, listOf("Rereading the section", "Rewriting"), 900) {
+            val current = fullDocument(body.document)
+            val section = current.section(body.sectionId) ?: throw ApiException(ApiException.NOT_FOUND, 404, "No such section.")
+            if (demoPolicyHit(body.instruction.orEmpty())) throw policyRefusal("This isn't something DownWork can build. It falls outside our Acceptable use policy.")
+            val context = body.inputs.orEmpty().map { it.text }.ifEmpty { current.sections.map { it.body } }
+            val rewritten = BriefWriter.regenerate(section, context, body.instruction)
+            aiResult(current.title, current.sections.map { if (it.id == body.sectionId) rewritten else it }, "Regenerated ${section.heading}", emptyList())
+        }
+    }
+
+    override suspend fun createQuote(body: QuoteRequest): JobEnvelope {
+        readState { requireConsent(it) }
+        return startJob("quote", null, listOf("Sizing the work", "Checking the timeline"), 900) {
+            val doc = fullDocument(body.document)
+            // The document screen runs inside the quote job.
+            if (demoPolicyHit(doc.title + " " + doc.sections.joinToString(" ") { it.body })) {
+                throw policyRefusal("This brief describes software we can't build under our Acceptable use policy.")
+            }
+            val parts = BriefWriter.quote(doc, config)
+            val maxWeeks = parts.workingDays / 5
+            val hash = hashOf(body.document)
+            val quote = Quote(
+                id = "qt_" + UUID.randomUUID().toString().take(8),
+                status = "current",
+                credits = parts.credits,
+                inr = parts.credits * config.credits.creditValueInr,
+                bracketId = parts.bracketId,
+                estimatedWorkingDays = parts.workingDays,
+                timeline = QuoteTimeline(minWeeks = ceil(maxWeeks * 0.6).toInt().coerceAtLeast(1), maxWeeks = maxWeeks),
+                complexity = Complexity(parts.score, parts.drivers),
+                breakdown = parts.breakdown.map { BreakdownItem(it.first, it.second) },
+                assumptions = parts.assumptions,
+                createdAt = Time.nowIso(),
+                expiresAt = Instant.now().plusSeconds(config.quote.validDays * 86_400L).toString(),
+                documentHash = hash,
             )
+            val token = "qtk_" + UUID.randomUUID().toString().replace("-", "")
+            mutate { s -> s.copy(quotes = s.quotes + (token to DemoQuote(quote, hash))) to Unit }
+            json.encodeToJsonElement(QuoteResult.serializer(), QuoteResult(quote, token))
         }
+    }
 
-    override suspend fun addInput(id: String, body: AddInputRequest): Project = mutate { s ->
-        requireConsent(s)
-        val p = requireProject(s, id)
-        requireEditable(p)
-        if (p.inputs.size >= config.limits.inputsPerProject) throw ApiException(ApiException.INVALID_ARGUMENT, 400, "A project can have ${config.limits.inputsPerProject} inputs.")
-        demoScreen(body.text)
-        val upload = body.fileId?.let { fid ->
-            val up = uploads[fid]
-            if (up == null || up.used || up.projectId != id) throw ApiException(ApiException.INVALID_ARGUMENT, 400, "That file has already been used or has expired. Choose it again.")
-            up.used = true
-            up.file = null
-            up
+    /** The token must be this brief's, unused and unexpired. */
+    private fun requireToken(s: State, token: String, doc: DocumentBody): DemoQuote {
+        val q = s.quotes[token]
+        val expired = q?.quote?.expiresAt?.let { Time.parse(it)?.isBefore(Instant.now()) } == true
+        if (q == null || q.used || expired || q.documentHash != hashOf(doc)) {
+            throw ApiException(ApiException.QUOTE_STALE, 409, "The brief changed since this quote. Get a new quote.")
         }
-        val (cleanText, notice) = demoRedact(body.text.trim())
-        val isText = body.kind != "voice"
-        val input = ProjectInput(
-            id = "in_" + UUID.randomUUID().toString().take(8),
-            kind = body.kind,
-            text = cleanText,
-            fileId = body.fileId,
-            fileName = upload?.fileName,
-            pageCount = upload?.pageCount,
-            screening = InputScreening(status = "clear", notice = notice),
-            audioId = if (isText) null else body.audioId,
-            durationSec = if (isText) null else body.durationSec,
-            languageDetected = if (isText) null else body.languageDetected,
-            audioExpiresAt = if (isText || body.audioId == null) null else Instant.now().plusSeconds(config.retention.audioDays * 86_400L).toString(),
-            createdAt = Time.nowIso(),
-        )
-        val next = p.copy(inputs = p.inputs + input)
-        put(s, next) to next
+        return q
     }
 
-    override suspend fun patchInput(id: String, inputId: String, body: PatchInputRequest): Project = mutate { s ->
-        val p = requireProject(s, id)
-        requireEditable(p)
-        demoScreen(body.text)
-        val (cleanText, notice) = demoRedact(body.text.trim())
-        val next = p.copy(inputs = p.inputs.map { if (it.id == inputId) it.copy(text = cleanText, screening = InputScreening(notice = notice)) else it })
-        put(s, next) to next
-    }
+    private fun held(doc: DocumentBody, version: Int) = ProjectDocument(
+        version = version,
+        title = doc.title,
+        sections = fullDocument(doc).sections,
+        documentHash = hashOf(doc),
+        updatedAt = Time.nowIso(),
+    )
 
-    override suspend fun deleteInput(id: String, inputId: String): Project = mutate { s ->
-        val p = requireProject(s, id)
-        requireEditable(p)
-        val next = p.copy(inputs = p.inputs.filterNot { it.id == inputId })
-        put(s, next) to next
-    }
-
-    // ----- document -----
-
-    private fun newVersion(s: State, p: Project, doc: Document): Pair<State, Project> {
-        val version = (s.documents[p.id]?.maxOfOrNull { it.version } ?: 0) + 1
-        val stamped = doc.copy(version = version, createdAt = Time.nowIso())
-        val next = s.copy(documents = s.documents + (p.id to (s.documents[p.id].orEmpty() + stamped)))
-        val project = p.copy(
-            document = stamped.summary().copy(locked = p.lockedVersion != null && p.status != ProjectStatus.CHANGES_REQUESTED),
-            title = stamped.title.ifBlank { p.title },
-            quote = p.quote?.let { q -> if (q.documentVersion != version) q.copy(status = "stale") else q },
-        )
-        return put(next, project) to project
-    }
-
-    private fun docJson(project: Project, s: State): JsonElement =
-        json.encodeToJsonElement(Document.serializer(), currentDoc(s, project.id)!!)
-
-    override suspend fun generateDocument(id: String, body: InstructionRequest): JobEnvelope =
-        startJob("generate", id, listOf("Listening back", "Finding the features", "Writing the brief"), 1_100) {
-            mutate { s ->
-                requireConsent(s)
-                val p = requireProject(s, id)
-                requireEditable(p)
-                if (p.inputs.isEmpty()) throw ApiException(ApiException.INVALID_STATE, 409, "Describe the project first.")
-                val draft = BriefWriter.write(p.inputs.map { it.text })
-                val doc = Document(
-                    version = 0,
-                    title = p.title.ifBlank { draft.title },
-                    sections = draft.sections,
-                    source = "ai",
-                    changeSummary = "Written from your description",
-                    generatedFrom = com.raviga.downwork.data.api.GeneratedFrom(p.inputs.map { it.id }),
-                )
-                val (next, project) = newVersion(s, p, doc)
-                next to docJson(project, next)
-            }
-        }
-
-    override suspend fun appendDocument(id: String, body: Empty): JobEnvelope =
-        startJob("append", id, listOf("Listening back", "Adding to the brief"), 1_100) {
-            mutate { s ->
-                requireConsent(s)
-                val p = requireProject(s, id)
-                requireEditable(p)
-                val current = currentDoc(s, id) ?: throw ApiException(ApiException.INVALID_STATE, 409, "Write the brief first.")
-                val merged = BriefWriter.append(current, p.inputs.map { it.text })
-                val doc = current.copy(sections = merged, source = "append", changeSummary = "Added from your new description", generatedFrom = com.raviga.downwork.data.api.GeneratedFrom(p.inputs.map { it.id }))
-                val (next, project) = newVersion(s, p, doc)
-                next to docJson(project, next)
-            }
-        }
-
-    override suspend fun regenerateSection(id: String, sectionId: String, body: InstructionRequest): JobEnvelope =
-        startJob("regenerate", id, listOf("Rereading the section", "Rewriting"), 900) {
-            mutate { s ->
-                requireConsent(s)
-                val p = requireProject(s, id)
-                requireEditable(p)
-                val current = currentDoc(s, id) ?: throw ApiException(ApiException.INVALID_STATE, 409, "Write the brief first.")
-                val section = current.section(sectionId) ?: throw ApiException(ApiException.NOT_FOUND, 404, "No such section.")
-                val rewritten = BriefWriter.regenerate(section, p.inputs.map { it.text }, body.instruction)
-                val doc = current.copy(
-                    sections = current.sections.map { if (it.id == sectionId) rewritten else it },
-                    source = "regenerate",
-                    changeSummary = "Regenerated ${section.heading}",
-                )
-                val (next, project) = newVersion(s, p, doc)
-                next to docJson(project, next)
-            }
-        }
-
-    override suspend fun document(id: String): Document = readState { s ->
-        requireProject(s, id)
-        currentDoc(s, id) ?: throw ApiException(ApiException.NOT_FOUND, 404, "No document yet.")
-    }
-
-    override suspend fun saveDocument(id: String, body: SaveDocumentRequest): Document = mutate { s ->
-        val p = requireProject(s, id)
-        requireEditable(p)
-        val current = currentDoc(s, id) ?: throw ApiException(ApiException.INVALID_STATE, 409, "Write the brief first.")
-        if (body.baseVersion != current.version) throw ApiException(
-            ApiException.VERSION_CONFLICT, 409, "The brief changed elsewhere. Reload and try again.",
-            details = buildJsonObject { put("currentVersion", current.version) },
-        )
-        val incoming = body.sections.associate { it.id to it.body }
-        val changed = current.sections.filter { incoming[it.id] != null && incoming[it.id] != it.body }.map { it.heading }
-        val titleChanged = body.title != null && body.title.trim() != current.title
-        val summary = "You edited " + (changed + if (titleChanged) listOf("the title") else emptyList()).ifEmpty { listOf("the brief") }.joinToString(", ")
-        val doc = current.copy(
-            title = body.title?.trim()?.ifBlank { null } ?: current.title,
-            sections = current.sections.map { sec -> incoming[sec.id]?.let { sec.copy(body = it.trim()) } ?: sec },
-            source = "edit",
-            changeSummary = summary,
-        )
-        val (next, _) = newVersion(s, p, doc)
-        next to currentDoc(next, id)!!
-    }
-
-    override suspend fun documentVersions(id: String): VersionsResponse = readState { s ->
-        requireProject(s, id)
-        VersionsResponse(s.documents[id].orEmpty().sortedByDescending { it.version }.map { VersionSummary(it.version, it.createdAt, it.source, it.changeSummary) })
-    }
-
-    override suspend fun documentVersion(id: String, version: Int): Document = readState { s ->
-        requireProject(s, id)
-        s.documents[id]?.firstOrNull { it.version == version } ?: throw ApiException(ApiException.NOT_FOUND, 404, "No such version.")
-    }
-
-    override suspend fun restoreDocumentVersion(id: String, version: Int, body: Empty): Document = mutate { s ->
-        val p = requireProject(s, id)
-        requireEditable(p)
-        val old = s.documents[id]?.firstOrNull { it.version == version } ?: throw ApiException(ApiException.NOT_FOUND, 404, "No such version.")
-        val doc = old.copy(source = "restore", changeSummary = "Restored version $version")
-        val (next, _) = newVersion(s, p, doc)
-        next to currentDoc(next, id)!!
-    }
-
-    // ----- quote, submit, review -----
-
-    override suspend fun quote(id: String, body: Empty): JobEnvelope =
-        startJob("quote", id, listOf("Sizing the work", "Checking the timeline"), 900) {
-            mutate<JsonElement?> { s ->
-                requireConsent(s)
-                val p = requireProject(s, id)
-                val doc = currentDoc(s, id) ?: throw ApiException(ApiException.INVALID_STATE, 409, "Write the brief first.")
-                // The document screen runs inside the quote job; a refusal freezes the project.
-                if (demoPolicyHit(doc.title + " " + doc.sections.joinToString(" ") { it.body })) {
-                    val reason = "This brief describes software that falls outside our Acceptable use policy, so the team can't build it."
-                    return@mutate put(s, p.copy(screening = ProjectScreening("rejected", reason, Time.nowIso()))) to null
-                }
-                val parts = BriefWriter.quote(doc, config)
-                val maxWeeks = parts.workingDays / 5
-                val quote = Quote(
-                    id = "qt_" + UUID.randomUUID().toString().take(8),
-                    documentVersion = doc.version,
-                    status = "current",
-                    credits = parts.credits,
-                    inr = parts.credits * config.credits.creditValueInr,
-                    bracketId = parts.bracketId,
-                    estimatedWorkingDays = parts.workingDays,
-                    timeline = QuoteTimeline(minWeeks = ceil(maxWeeks * 0.6).toInt().coerceAtLeast(1), maxWeeks = maxWeeks),
-                    complexity = Complexity(parts.score, parts.drivers),
-                    breakdown = parts.breakdown.map { BreakdownItem(it.first, it.second) },
-                    assumptions = parts.assumptions,
-                    createdAt = Time.nowIso(),
-                    expiresAt = Instant.now().plusSeconds(config.quote.validDays * 86_400L).toString(),
-                )
-                val project = p.copy(quote = quote)
-                put(s, project) to json.encodeToJsonElement(Quote.serializer(), quote)
-            } ?: throw policyRefusal("This brief describes software we can't build under our Acceptable use policy.")
-        }
-
-    override suspend fun latestQuote(id: String): Quote = readState { s ->
-        requireProject(s, id).quote ?: throw ApiException(ApiException.NOT_FOUND, 404, "No quote yet.")
-    }
-
-    private fun requireQuote(p: Project, quoteId: String): Quote {
-        val quote = p.quote
-        if (quote == null || quote.id != quoteId || p.quoteIsStale) throw ApiException(ApiException.QUOTE_STALE, 409, "The brief changed since this quote. Get a new quote.")
-        return quote
-    }
-
-    override suspend fun submit(id: String, idempotencyKey: String, body: SubmitRequest): Project = mutate { s ->
-        val p = requireProject(s, id)
-        if (p.status != ProjectStatus.DRAFT) throw ApiException(ApiException.INVALID_STATE, 409, "This project has already been submitted.", details = buildJsonObject { put("status", p.status) })
+    override suspend fun submitProject(idempotencyKey: String, body: SubmitProjectRequest): Project = mutate { s ->
+        s.submits[idempotencyKey]?.let { id -> return@mutate s to requireProject(s, id) }
         requireConsent(s)
         var next = s
         if (body.githubUsername != null || body.awsAccountId != null) {
             next = applyTargets(next, DeliveryTargetsRequest(body.githubUsername, body.awsAccountId)).first
         }
-        val quote = requireQuote(p, body.quoteId)
+        val q = requireToken(next, body.quoteToken, body.document)
+        val quote = q.quote
         val balance = balanceOf(next)
         if (balance < quote.credits) throw ApiException(
             ApiException.INSUFFICIENT_CREDITS, 402, "You need ${quote.credits - balance} more credits.",
             details = buildJsonObject { put("required", quote.credits); put("balance", balance) },
         )
-        next = ledger(next, "charge", -quote.credits, LedgerRef(projectId = id), p.title)
         val now = Time.nowIso()
-        val project = p.copy(
-            lockedVersion = p.document?.version,
-            document = p.document?.copy(locked = true),
+        val id = "pr_" + UUID.randomUUID().toString().replace("-", "").take(10)
+        next = ledger(next, "charge", -quote.credits, LedgerRef(projectId = id), body.document.title)
+        val project = Project(
+            id = id,
+            ref = "DW-" + UUID.randomUUID().toString().replace("-", "").take(6).uppercase(),
+            title = body.document.title,
+            status = ProjectStatus.SUBMITTED,
+            createdAt = now,
+            updatedAt = now,
+            document = held(body.document, 1),
             quote = quote.copy(status = "used"),
+            lockedVersion = 1,
             submission = Submission(submittedAt = now, githubUsername = next.deliveryTargets.githubUsername.ifBlank { null }, awsAccountId = next.deliveryTargets.aws?.accountId, creditsCharged = quote.credits),
             timeline = Timeline(estimatedWorkingDays = quote.estimatedWorkingDays, estimatedDeliveryDate = null, milestones = emptyList()),
+            revisions = Revisions(used = 0, included = config.revisions.includedRounds),
+            history = emptyList(),
         )
+        next = next.copy(quotes = next.quotes + (body.quoteToken to q.copy(used = true)), submits = next.submits + (idempotencyKey to id))
         transition(next, project, ProjectStatus.SUBMITTED, "client")
     }
 
     override suspend fun resubmit(id: String, idempotencyKey: String, body: ResubmitRequest): Project = mutate { s ->
+        s.submits[idempotencyKey]?.let { return@mutate s to requireProject(s, it) }
         val p = requireProject(s, id)
         if (p.status != ProjectStatus.CHANGES_REQUESTED) throw ApiException(ApiException.INVALID_STATE, 409, "Only projects with comments can be resubmitted.", details = buildJsonObject { put("status", p.status) })
         requireConsent(s)
-        val quote = requireQuote(p, body.quoteId)
+        val q = requireToken(s, body.quoteToken, body.document)
+        val quote = q.quote
         val charged = p.submission?.creditsCharged ?: 0
         val diff = quote.credits - charged
         var next = s
         if (diff > 0) {
             val balance = balanceOf(s)
             if (balance < diff) throw ApiException(ApiException.INSUFFICIENT_CREDITS, 402, "You need ${diff - balance} more credits.", details = buildJsonObject { put("required", diff); put("balance", balance) })
-            next = ledger(next, "charge", -diff, LedgerRef(projectId = id), "Resubmitted ${p.title}")
+            next = ledger(next, "charge", -diff, LedgerRef(projectId = id), "Resubmitted ${body.document.title}")
         } else if (diff < 0) {
-            next = ledger(next, "refund_project", -diff, LedgerRef(projectId = id), "Resubmitted ${p.title}")
+            next = ledger(next, "refund_project", -diff, LedgerRef(projectId = id), "Resubmitted ${body.document.title}")
         }
         val now = Time.nowIso()
+        val version = (p.document?.version ?: 0) + 1
         val project = p.copy(
-            lockedVersion = p.document?.version,
-            document = p.document?.copy(locked = true),
+            title = body.document.title,
+            document = held(body.document, version),
+            lockedVersion = version,
             quote = quote.copy(status = "used"),
             submission = p.submission?.copy(submittedAt = now, creditsCharged = quote.credits),
             review = p.review.copy(decidedAt = null),
             timeline = Timeline(estimatedWorkingDays = quote.estimatedWorkingDays, estimatedDeliveryDate = null, milestones = emptyList()),
         )
+        next = next.copy(quotes = next.quotes + (body.quoteToken to q.copy(used = true)), submits = next.submits + (idempotencyKey to id))
         val (n, t) = transition(next, project, ProjectStatus.SUBMITTED, "client", "Resubmitted")
         n.copy(resubmitted = n.resubmitted + id) to t
     }
@@ -975,7 +711,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
 
     override suspend fun exportData(body: Empty): JobEnvelope =
         startJob("export", null, listOf("Collecting your projects", "Packaging"), 900) {
-            json.encodeToJsonElement(ExportResult.serializer(), ExportResult(downloadUrl = "https://downwork.in/exports/demo-export.zip", expiresAt = Instant.now().plusSeconds(config.retention.exportLinkHours * 3600L).toString(), sizeBytes = 48_213))
+            json.encodeToJsonElement(ExportResult.serializer(), ExportResult(downloadUrl = DEMO_EXPORT_URL, expiresAt = Instant.now().plusSeconds(config.retention.exportLinkHours * 3600L).toString(), sizeBytes = 48_213))
         }
 
     override suspend fun deleteMe(body: DeleteMeRequest): DeleteMeResponse = lock.withLock {
@@ -992,7 +728,8 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
 
     companion object {
         private const val STATE = "demo_state"
-        const val DEMO_UPLOAD_URL = "https://demo.invalid/upload"
+        /** Demo exports have no server part; [com.raviga.downwork.data.files.ExportBuilder] adds only the drafts. */
+        const val DEMO_EXPORT_URL = "demo:export"
         private val GITHUB = Regex("^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$")
 
         fun demoConfig() = AppConfig(
@@ -1019,18 +756,18 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
             ),
             revisions = RevisionsConfig(2),
             acceptance = AcceptanceConfig(14),
-            retention = RetentionConfig(audioDays = 7, deletionGraceDays = 7, exportLinkHours = 24, jobHours = 24, fileHours = 24, inputsDaysAfterClose = 30),
+            retention = RetentionConfig(deletionGraceDays = 7, exportLinkHours = 24, jobHours = 24, aiResultMinutes = 15),
             limits = LimitsConfig(),
-            ai = AiConfig(listOf("OpenAI (speech to text and document drafting)")),
+            ai = AiConfig(listOf("OpenAI (writes and prices briefs from text only; may keep it up to 30 days for abuse checks, never trains on it)")),
             delivery = DeliveryConfig("521901166785", "DownWorkDeployRole", "ap-south-1"),
             legal = LegalConfig(
                 companyName = "Raviga Apps Private Limited",
                 companyAddress = "Raviga Apps Private Limited, India",
                 // The backend serves these pages (contract v0.4); demo mode opens the dev copies.
                 termsUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/terms",
-                termsVersion = "2026-10-01",
+                termsVersion = "2026-10-10",
                 privacyUrl = "https://x00mzee0y3.execute-api.ap-south-1.amazonaws.com/v1/legal/privacy",
-                privacyVersion = "2026-10-01",
+                privacyVersion = "2026-10-10",
                 grievance = Grievance("Alankrita Sood", "membersupport@miraquill.com", "Raviga Apps Private Limited, India", 15),
                 supportEmail = "support@miraquill.com",
             ),

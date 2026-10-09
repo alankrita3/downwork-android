@@ -1,10 +1,13 @@
 package com.raviga.downwork.ui.capture
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.raviga.downwork.data.api.ApiException
-import com.raviga.downwork.data.audio.AudioRecorder
 import com.raviga.downwork.data.audio.DictationEngine
+import com.raviga.downwork.data.files.FileImporter
+import com.raviga.downwork.data.files.TextExtractor
+import com.raviga.downwork.data.screening.SensitiveScan
 import com.raviga.downwork.di.AppContainer
 import com.raviga.downwork.ui.userLine
 import kotlinx.coroutines.Job
@@ -15,34 +18,40 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /**
- * Capture → Transcript → Drafting. Live dictation when the device has it;
- * otherwise a recording that the backend transcribes. Either way the client
- * reviews the text before the brief is written.
+ * Capture → review → Drafting, local-first (contract v0.6). Speech is
+ * recognised on the phone, documents are read on the phone, and the notes are
+ * saved in the local draft. Only their text goes to the AI to write the brief.
  */
 class CaptureViewModel(
     private val container: AppContainer,
-    initialProjectId: String,
+    initialDraftId: String,
     private val mode: String,
     initialTab: String = DescribeWith.SPEAK,
 ) : ViewModel() {
 
     enum class Phase { CAPTURE, TRANSCRIPT, DRAFTING }
 
-    /** What the backend read from an uploaded document. */
+    /** What was read from a document on this phone. */
     data class FileRead(
-        val fileId: String,
         val fileName: String,
         val pageCount: Int?,
         val truncated: Boolean,
         val notice: String?,
     )
 
+    sealed interface Speech {
+        data object Checking : Speech
+        data class Ready(val engine: DictationEngine.Availability.Ready) : Speech
+        data class NotYet(val message: String) : Speech
+        data class Unavailable(val message: String) : Speech
+    }
+
     data class State(
         val phase: Phase = Phase.CAPTURE,
         val tab: Int = 0,                       // 0 speak, 1 type, 2 upload
+        val speech: Speech = Speech.Checking,
         val listening: Boolean = false,
         val committed: List<String> = emptyList(),
         val partial: String = "",
@@ -50,13 +59,13 @@ class CaptureViewModel(
         val level: Float = 0f,
         val elapsedSec: Int = 0,
         val transcript: String = "",
-        val transcribing: Boolean = false,
+        /** Reading a document on the phone. */
+        val reading: Boolean = false,
         val progress: Float? = null,
         val progressMessage: String? = null,
         val error: String? = null,
         val needsConsent: Boolean = false,
-        val done: String? = null,               // project id to open
-        val usesRecorder: Boolean = false,
+        val done: String? = null,               // draft id to open
         val file: FileRead? = null,
         /** Title of the "this looks like it includes…" sheet, while it is open. */
         val sensitive: String? = null,
@@ -64,12 +73,10 @@ class CaptureViewModel(
         val focusEditor: Int = 0,
     ) {
         val hasSpeech get() = committed.isNotEmpty() || partial.isNotBlank()
-        val isAppend get() = false
     }
 
     private val _state = MutableStateFlow(
         State(
-            usesRecorder = !container.dictation.isAvailable,
             tab = when (initialTab) {
                 DescribeWith.TYPE -> TAB_TYPE
                 DescribeWith.UPLOAD -> TAB_UPLOAD
@@ -81,22 +88,30 @@ class CaptureViewModel(
 
     val isAppend: Boolean get() = mode == "append"
 
-    private var projectId: String? = initialProjectId.takeIf { it != "new" }
-    /** This capture created [projectId] (it was not opened from an existing project). */
-    private var createdHere = false
+    private var draftId: String? = initialDraftId.takeIf { it != "new" }
     private var listenJob: Job? = null
     private var timerJob: Job? = null
-    private var levelJob: Job? = null
-    private var recording: AudioRecorder.Recording? = null
-    private var audioId: String? = null
-    private var languageDetected: String? = null
     private var pendingAfterConsent: (() -> Unit)? = null
     /** Utterances already moved into the transcript, so "Record more" adds only the new ones. */
     private var consumedUtterances = 0
-    /** The input saved for this transcript (id, text): a retry after a failed draft must not add it twice. */
+    /** The note saved for this transcript (id, text): a retry must not add it twice. */
     private var savedInput: Pair<String, String>? = null
     /** Text the client chose to keep despite the sensitive-data warning. */
     private var acknowledgedText: String? = null
+
+    init { checkSpeech() }
+
+    fun checkSpeech() {
+        viewModelScope.launch {
+            val speech = when (val a = container.dictation.availability()) {
+                is DictationEngine.Availability.Ready -> Speech.Ready(a)
+                is DictationEngine.Availability.Downloading ->
+                    Speech.NotYet("Getting ${a.language} speech ready on this phone so it works offline. Try again in a minute.")
+                is DictationEngine.Availability.Unavailable -> Speech.Unavailable(a.message)
+            }
+            _state.update { it.copy(speech = speech) }
+        }
+    }
 
     fun selectTab(index: Int) {
         if (_state.value.listening) stopListening()
@@ -104,11 +119,12 @@ class CaptureViewModel(
     }
 
     fun setTyped(text: String) = _state.update { it.copy(typed = text) }
+    fun setTranscript(text: String) = _state.update { it.copy(transcript = text) }
 
     /** Emulators have no microphone and demos want a quick start: offer a canned description. */
     val offersSample: Boolean get() = container.isDemo || isEmulator()
 
-    fun useSample() = _state.update { it.copy(tab = 1, typed = SAMPLE_DESCRIPTION, error = null) }
+    fun useSample() = _state.update { it.copy(tab = TAB_TYPE, typed = SAMPLE_DESCRIPTION, error = null) }
 
     private fun isEmulator(): Boolean {
         val fp = android.os.Build.FINGERPRINT.lowercase()
@@ -117,59 +133,41 @@ class CaptureViewModel(
             android.os.Build.HARDWARE.lowercase().let { it.contains("goldfish") || it.contains("ranchu") }
     }
 
-    companion object {
-        const val TAB_SPEAK = 0
-        const val TAB_TYPE = 1
-        const val TAB_UPLOAD = 2
-        const val SAMPLE_DESCRIPTION = "I want an app for my salon in Delhi called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online with UPI. They should get a reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
-    }
-    fun setTranscript(text: String) = _state.update { it.copy(transcript = text) }
-
     private fun needsConsent(): Boolean = container.session.needsAiConsent(container.session.me.value)
 
     /** The screen has navigated to the consent flow; do not ask again on re-entry. */
     fun consentRequested() = _state.update { it.copy(needsConsent = false) }
 
-    /** Called after the AI consent screen returns granted. */
     fun consentGranted() {
         _state.update { it.copy(needsConsent = false) }
         pendingAfterConsent?.invoke()
         pendingAfterConsent = null
     }
 
-    fun consentDismissed() {
-        _state.update { it.copy(needsConsent = false) }
-        pendingAfterConsent = null
-    }
-
-    // ----- Speak -----
+    // ----- Speak (on the device only) -----
 
     fun toggleListening() {
         if (_state.value.listening) stopListening() else startListening()
     }
 
     private fun startListening() {
-        if (needsConsent()) {
-            pendingAfterConsent = { startListening() }
-            _state.update { it.copy(needsConsent = true) }
+        val speech = _state.value.speech
+        if (speech !is Speech.Ready) {
+            if (speech is Speech.NotYet) checkSpeech()
             return
         }
         _state.update { it.copy(listening = true, error = null) }
         startTimer()
-        if (_state.value.usesRecorder) startRecorder() else startDictation()
-    }
-
-    private fun startDictation() {
         listenJob?.cancel()
         listenJob = viewModelScope.launch {
-            container.dictation.listen(Locale.getDefault()).collect { event ->
+            container.dictation.listen(speech.engine).collect { event ->
                 when (event) {
                     is DictationEngine.Event.Partial -> _state.update { it.copy(partial = event.text) }
                     is DictationEngine.Event.Utterance -> _state.update { it.copy(committed = it.committed + event.text, partial = "") }
                     is DictationEngine.Event.Level -> _state.update { it.copy(level = DictationEngine.levelFromRms(event.rmsDb)) }
                     is DictationEngine.Event.Error -> if (event.fatal) {
                         stopListening()
-                        _state.update { it.copy(error = "The microphone stopped. Tap the button to try again, or type instead.") }
+                        _state.update { it.copy(error = DictationEngine.errorLine(event.code)) }
                     }
                     DictationEngine.Event.Ready -> Unit
                 }
@@ -177,36 +175,9 @@ class CaptureViewModel(
         }
     }
 
-    private fun startRecorder() {
-        runCatching { container.recorder.start(onLimit = { viewModelScope.launch { onRecorderLimit() } }) }
-            .onFailure {
-                _state.update { it.copy(listening = false, error = "Couldn't start the microphone. Type instead.") }
-                stopTimer()
-                return
-            }
-        levelJob?.cancel()
-        levelJob = viewModelScope.launch {
-            while (isActive) {
-                _state.update { it.copy(level = container.recorder.level()) }
-                delay(50)
-            }
-        }
-    }
-
-    private fun onRecorderLimit() {
-        if (!_state.value.listening) return
-        stopListening()
-        _state.update { it.copy(error = "Recordings stop at 10 minutes. Tap Done, or record another part.") }
-    }
-
     fun stopListening() {
-        val wasRecorder = _state.value.usesRecorder
         listenJob?.cancel(); listenJob = null
-        levelJob?.cancel(); levelJob = null
         stopTimer()
-        if (wasRecorder) {
-            recording = container.recorder.stop()
-        }
         _state.update { s ->
             val committed = if (s.partial.isNotBlank()) s.committed + s.partial else s.committed
             s.copy(listening = false, level = 0f, committed = committed, partial = "")
@@ -225,12 +196,9 @@ class CaptureViewModel(
 
     private fun stopTimer() { timerJob?.cancel(); timerJob = null }
 
-    // ----- Done → Transcript -----
+    // ----- Upload (read on the device) -----
 
-    // ----- Upload -----
-
-    /** A document picked in the system file picker. */
-    fun pickedFile(uri: android.net.Uri) {
+    fun pickedFile(uri: Uri) {
         val limits = container.session.config.value.limits
         _state.update { it.copy(error = null) }
         viewModelScope.launch {
@@ -240,90 +208,51 @@ class CaptureViewModel(
                 _state.update { it.copy(error = e.message ?: "Couldn't open that file.") }
                 return@launch
             }
-            // The text goes through AI screening and drafting, so consent comes first.
-            if (needsConsent()) {
-                pendingAfterConsent = { readFile(picked) }
-                _state.update { it.copy(needsConsent = true) }
-                return@launch
+            // A new document is a new note, even if an earlier one was already saved.
+            savedInput = null
+            acknowledgedText = null
+            _state.update {
+                it.copy(
+                    phase = Phase.TRANSCRIPT, tab = TAB_UPLOAD, reading = true, transcript = "", file = null,
+                    progress = null, progressMessage = "Reading ${picked.name}", error = null,
+                )
             }
-            readFile(picked)
+            try {
+                val result = container.extractor.extract(
+                    picked.file, picked.contentType,
+                    maxChars = limits.textInputMaxChars, maxPages = limits.fileMaxPages,
+                ) { step -> _state.update { it.copy(progressMessage = step) } }
+                _state.update {
+                    it.copy(
+                        reading = false, progress = null, progressMessage = null,
+                        transcript = result.text,
+                        file = FileRead(picked.name, result.pageCount, result.truncated, result.notice),
+                    )
+                }
+            } catch (e: TextExtractor.Unreadable) {
+                _state.update { it.copy(phase = Phase.CAPTURE, reading = false, progressMessage = null, error = e.message) }
+            } catch (e: Exception) {
+                _state.update { it.copy(phase = Phase.CAPTURE, reading = false, progressMessage = null, error = "Couldn't read that file. Try another copy, or paste the text instead.") }
+            } finally {
+                // The file never leaves the phone, and doesn't stay on it either.
+                picked.file.delete()
+            }
         }
     }
 
-    private fun readFile(picked: com.raviga.downwork.data.files.FileImporter.Picked) {
-        // A new document is a new input, even if an earlier one was already saved.
-        savedInput = null
-        acknowledgedText = null
-        _state.update {
-            it.copy(
-                phase = Phase.TRANSCRIPT, tab = TAB_UPLOAD, transcribing = true, transcript = "", file = null,
-                progress = null, progressMessage = "Reading ${picked.name}", error = null,
-            )
-        }
-        viewModelScope.launch {
-            try {
-                val id = ensureProject()
-                val result = container.projects.extract(id, picked.file, picked.name, picked.contentType) { st ->
-                    _state.update { it.copy(progress = st.progress) }
-                }
-                _state.update {
-                    it.copy(
-                        transcribing = false, progress = null, progressMessage = null,
-                        transcript = result.text,
-                        file = FileRead(result.fileId, result.fileName.ifBlank { picked.name }, result.pageCount, result.truncated, result.notice),
-                    )
-                }
-            } catch (e: Exception) {
-                picked.file.delete()
-                dropRefusedEmptyProject(e)
-                _state.update { it.copy(phase = Phase.CAPTURE, transcribing = false, progress = null, progressMessage = null, error = e.userLine()) }
-            }
-        }
-    }
+    // ----- Done → review -----
 
     fun finishCapture() {
         if (_state.value.listening) stopListening()
         val s = _state.value
-        if (s.tab == TAB_UPLOAD) return
-        if (s.tab == TAB_TYPE) {
-            _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = s.typed.trim()) }
-            return
-        }
-        if (s.usesRecorder) {
-            val rec = recording
-            if (rec == null) {
-                if (s.transcript.isNotBlank()) _state.update { it.copy(phase = Phase.TRANSCRIPT, error = null) }
-                else _state.update { it.copy(error = "Nothing was recorded yet.") }
-                return
+        when (s.tab) {
+            TAB_UPLOAD -> return
+            TAB_TYPE -> _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = s.typed.trim()) }
+            else -> {
+                val fresh = s.committed.drop(consumedUtterances).joinToString(" ")
+                consumedUtterances = s.committed.size
+                _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = joinText(it.transcript, fresh)) }
             }
-            // Each clip is transcribed once; "Record more" adds the next clip's words to the end.
-            recording = null
-            _state.update { it.copy(phase = Phase.TRANSCRIPT, transcribing = true, error = null) }
-            viewModelScope.launch { transcribe(rec) }
-        } else {
-            val fresh = s.committed.drop(consumedUtterances).joinToString(" ")
-            consumedUtterances = s.committed.size
-            _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = joinText(it.transcript, fresh)) }
-        }
-    }
-
-    private suspend fun transcribe(rec: AudioRecorder.Recording) {
-        try {
-            val id = ensureProject()
-            // The backend auto-detects; only hint when the phone itself is set to Hindi, so an
-            // English-locale phone doesn't bias a Hindi recording towards English.
-            val hint = Locale.getDefault().language.takeIf { it == "hi" }
-            val (audio, result) = container.projects.transcribe(id, rec.file, (rec.durationMs / 1000).toInt(), hint) { st ->
-                _state.update { it.copy(progress = st.progress, progressMessage = st.message) }
-            }
-            audioId = audio
-            languageDetected = result.languageDetected
-            rec.file.delete()
-            _state.update { it.copy(transcribing = false, transcript = joinText(it.transcript, result.transcript), progress = null, progressMessage = null) }
-        } catch (e: Exception) {
-            // Keep the clip so Done tries it again.
-            if (recording == null) recording = rec
-            _state.update { it.copy(transcribing = false, error = e.userLine(), progress = null) }
         }
     }
 
@@ -339,7 +268,7 @@ class CaptureViewModel(
     // ----- Sensitive data (layer 0) -----
 
     fun removeSensitive() {
-        _state.update { it.copy(transcript = com.raviga.downwork.data.screening.SensitiveScan.redact(it.transcript.trim()), sensitive = null) }
+        _state.update { it.copy(transcript = SensitiveScan.redact(it.transcript.trim()), sensitive = null) }
         writeBrief()
     }
 
@@ -351,107 +280,108 @@ class CaptureViewModel(
 
     fun editSensitive() = _state.update { it.copy(sensitive = null, focusEditor = it.focusEditor + 1) }
 
-    // ----- Transcript → Drafting -----
+    // ----- Review → Drafting -----
 
     fun writeBrief() {
-        if (needsConsent()) {
-            pendingAfterConsent = { writeBrief() }
-            _state.update { it.copy(needsConsent = true) }
-            return
-        }
         val s = _state.value
         val text = s.transcript.trim()
         if (text.isBlank()) {
             _state.update { it.copy(error = "Say or type something about the project first.") }
             return
         }
+        // Text goes to the AI from here on; ask once.
+        if (needsConsent()) {
+            pendingAfterConsent = { writeBrief() }
+            _state.update { it.copy(needsConsent = true) }
+            return
+        }
         if (text != acknowledgedText && text != savedInput?.second) {
-            val findings = com.raviga.downwork.data.screening.SensitiveScan.scan(text)
+            val findings = SensitiveScan.scan(text)
             if (findings.isNotEmpty()) {
-                _state.update { it.copy(sensitive = com.raviga.downwork.data.screening.SensitiveScan.title(findings), error = null) }
+                _state.update { it.copy(sensitive = SensitiveScan.title(findings), error = null) }
                 return
             }
         }
-        _state.update { it.copy(phase = Phase.DRAFTING, error = null, progress = null, progressMessage = "Listening back") }
+        _state.update { it.copy(phase = Phase.DRAFTING, error = null, progress = null, progressMessage = "Reading your notes") }
         viewModelScope.launch {
+            val drafts = container.drafts
+            val id = draftId ?: drafts.create().id.also { draftId = it }
             try {
-                val id = ensureProject()
-                val voice = s.tab == TAB_SPEAK
-                val file = s.file?.takeIf { s.tab == TAB_UPLOAD }
                 val saved = savedInput
                 when {
                     saved == null -> {
-                        val project = container.projects.addInput(
+                        val voice = s.tab == TAB_SPEAK
+                        val file = s.file?.takeIf { s.tab == TAB_UPLOAD }
+                        val input = drafts.addInput(
                             id = id,
                             kind = when {
                                 file != null -> "file"
-                                voice && (audioId != null || !s.usesRecorder) -> "voice"
+                                voice -> "voice"
                                 else -> "text"
                             },
                             text = text,
-                            audioId = audioId.takeIf { voice },
-                            durationSec = if (voice) s.elapsedSec.takeIf { it > 0 } else null,
-                            languageDetected = if (voice) (languageDetected ?: Locale.getDefault().language) else null,
-                            fileId = file?.fileId,
+                            languageDetected = (s.speech as? Speech.Ready)?.engine?.languageTag?.takeIf { voice },
+                            fileName = file?.fileName,
+                            pageCount = file?.pageCount,
+                            durationSec = s.elapsedSec.takeIf { voice && it > 0 },
                         )
-                        val inputId = project.inputs.lastOrNull { it.text.trim() == text }?.id ?: project.inputs.lastOrNull()?.id
-                        savedInput = inputId?.let { it to text }
+                        savedInput = input.id to text
                     }
                     saved.second != text -> {
-                        container.projects.editInput(id, saved.first, text)
+                        drafts.editInput(id, saved.first, text)
                         savedInput = saved.first to text
                     }
                 }
-                val onProgress: (com.raviga.downwork.data.api.JobState) -> Unit = { st ->
+                drafts.writeBrief(id) { st ->
                     _state.update { it.copy(progress = st.progress, progressMessage = st.message ?: it.progressMessage) }
                 }
-                val hasDocument = container.projects.cachedProject(id)?.document != null
-                if (isAppend && hasDocument) container.projects.append(id, onProgress) else container.projects.generate(id, "", onProgress)
                 _state.update { it.copy(done = id) }
             } catch (e: Exception) {
-                val api = e as? ApiException
-                val legal = api?.detailStrings("missing")?.any { it == "terms" || it == "privacy" } == true
-                // Terms out of date: the app shows them (ConsentInterceptor); AI consent is asked here.
-                val line = if (api?.code == ApiException.CONSENT_REQUIRED && !legal) {
-                    pendingAfterConsent = { writeBrief() }
-                    _state.update { it.copy(needsConsent = true) }
-                    null
-                } else e.userLine()
-                dropRefusedEmptyProject(e)
-                _state.update { it.copy(phase = Phase.TRANSCRIPT, error = line, progress = null, progressMessage = null) }
+                onWriteFailed(id, e)
             }
         }
     }
 
-    /**
-     * A policy refusal on the first note of a project made in this capture leaves an empty
-     * project the server has marked rejected. Delete it, so an honest rewrite starts fresh.
-     * Strikes still count on the server. Matches iOS.
-     */
-    private suspend fun dropRefusedEmptyProject(e: Exception) {
-        val api = e as? ApiException ?: return
-        if (api.code != ApiException.CONTENT_REJECTED || api.detailString("kind") != "policy") return
-        val id = projectId ?: return
-        if (!createdHere || savedInput != null) return
-        val project = container.projects.cachedProject(id)
-        if (project != null && project.inputs.isNotEmpty()) return
-        runCatching { container.projects.delete(id) }
-        projectId = null
-        createdHere = false
-    }
-
-    private suspend fun ensureProject(): String {
-        projectId?.let { return it }
-        val created = container.projects.create()
-        projectId = created.id
-        createdHere = true
-        return created.id
+    private suspend fun onWriteFailed(id: String, e: Exception) {
+        val api = e as? ApiException
+        val legal = api?.detailStrings("missing")?.any { it == "terms" || it == "privacy" } == true
+        when {
+            // Terms out of date: the app shows them (ConsentInterceptor). AI consent is asked here.
+            api?.code == ApiException.CONSENT_REQUIRED && !legal -> {
+                pendingAfterConsent = { writeBrief() }
+                _state.update { it.copy(phase = Phase.TRANSCRIPT, needsConsent = true, progress = null, progressMessage = null) }
+            }
+            // A policy refusal froze the draft (DraftRepository); the brief screen explains it.
+            api?.code == ApiException.CONTENT_REJECTED && api.detailString("kind") == "policy" ->
+                _state.update { it.copy(done = id) }
+            else -> {
+                // A quality refusal means this note isn't usable as it is: take it back out, so a
+                // fixed version replaces it instead of joining it.
+                if (api?.code == ApiException.CONTENT_REJECTED) {
+                    savedInput?.let { runCatching { container.drafts.removeInput(id, it.first) } }
+                    savedInput = null
+                }
+                _state.update { it.copy(phase = Phase.TRANSCRIPT, error = e.userLine(), progress = null, progressMessage = null) }
+            }
+        }
     }
 
     override fun onCleared() {
         listenJob?.cancel()
-        levelJob?.cancel()
         timerJob?.cancel()
-        if (container.recorder.isRecording) container.recorder.cancel()
+        // A draft made here that never got a note is just noise on Home.
+        val id = draftId
+        if (id != null && savedInput == null && mode != "append") {
+            container.appScope.launch {
+                container.drafts.get(id)?.takeIf { it.inputs.isEmpty() && it.versions.isEmpty() }?.let { container.drafts.delete(it.id) }
+            }
+        }
+    }
+
+    companion object {
+        const val TAB_SPEAK = 0
+        const val TAB_TYPE = 1
+        const val TAB_UPLOAD = 2
+        const val SAMPLE_DESCRIPTION = "I want an app for my salon in Delhi called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online with UPI. They should get a reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
     }
 }

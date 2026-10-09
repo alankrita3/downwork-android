@@ -64,8 +64,8 @@ class SectionEditorViewModel(private val container: AppContainer, private val pr
 
     init {
         viewModelScope.launch {
-            container.projects.warmProject(projectId)
-            val doc = container.projects.cachedDocument(projectId) ?: runCatching { container.projects.refreshDocument(projectId) }.getOrNull()
+            container.drafts.load()
+            val doc = container.drafts.get(projectId)?.document
             val section = doc?.section(sectionId)
             _state.update { it.copy(document = doc, heading = section?.heading ?: it.heading, hint = section?.hint, body = section?.body.orEmpty()) }
         }
@@ -93,7 +93,7 @@ class SectionEditorViewModel(private val container: AppContainer, private val pr
         val doc = _state.value.document ?: return
         viewModelScope.launch {
             _state.update { it.copy(saving = true, error = null) }
-            runCatching { container.projects.saveDocument(projectId, doc.version, null, listOf(SectionBody(sectionId, _state.value.body.trim()))) }
+            runCatching { container.drafts.saveEdit(projectId, null, listOf(SectionBody(sectionId, _state.value.body.trim()))) }
                 .onSuccess { _state.update { it.copy(saving = false, saved = true) } }
                 .onFailure { e -> _state.update { it.copy(saving = false, error = e.userLine()) } }
         }
@@ -106,11 +106,12 @@ class SectionEditorViewModel(private val container: AppContainer, private val pr
         viewModelScope.launch {
             _state.update { it.copy(busyMessage = "Rereading the section", busyProgress = null, error = null) }
             runCatching {
-                container.projects.regenerateSection(projectId, sectionId, instruction) { st ->
+                container.drafts.regenerate(projectId, sectionId, instruction) { st ->
                     _state.update { it.copy(busyMessage = st.message ?: it.busyMessage, busyProgress = st.progress) }
                 }
-            }.onSuccess { doc ->
-                _state.update { it.copy(document = doc, body = doc.section(sectionId)?.body.orEmpty()) }
+            }.onSuccess { draft ->
+                val doc = draft.document
+                _state.update { it.copy(document = doc, body = doc?.section(sectionId)?.body.orEmpty()) }
             }.onFailure { e -> _state.update { it.copy(error = e.userLine()) } }
             _state.update { it.copy(busyMessage = null, busyProgress = null, sheet = false) }
         }

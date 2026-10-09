@@ -157,14 +157,13 @@ data class AcceptanceConfig(val autoAcceptDays: Int = 14)
 
 @Serializable
 data class RetentionConfig(
-    val audioDays: Int = 7,
     val deletionGraceDays: Int = 7,
     val exportLinkHours: Int = 24,
     val jobHours: Int = 24,
-    /** Uploaded files are deleted once read; this is the backstop. A fileId is valid this long. */
-    val fileHours: Int = 24,
-    /** Raw inputs (transcripts, typed notes, file text) are purged this long after a project closes. */
-    val inputsDaysAfterClose: Int = 30,
+    /** AI job results are readable this long after they finish (cut short once read). */
+    val aiResultMinutes: Int = 15,
+    /** Statuses at which the server deletes the brief and everything written about it. */
+    val briefDeletedOn: List<String> = listOf("accepted", "cancelled", "rejected"),
 )
 
 @Serializable
@@ -173,14 +172,16 @@ data class LimitsConfig(
     val audioMaxSeconds: Int = 1200,
     val inputsPerProject: Int = 10,
     val textInputMaxChars: Int = 20_000,
+    /** Whole brief, all sections, as sent to the AI and quote calls. */
+    val documentMaxChars: Int = 60_000,
     val acceptedMimeTypes: List<String> = listOf("audio/m4a", "audio/mp4"),
     val fileMaxBytes: Long = 10_485_760,
     val fileMaxPages: Int = 60,
-    /** MIME types; sent as `contentType` on files/upload-url. */
+    /** MIME types the app reads on the device (v0.6: files never leave the phone). */
     val acceptedFileTypes: List<String> = FileTypes.DEFAULT,
 )
 
-/** Document uploads (contract v0.5): MIME types and the extensions that map to them. */
+/** Documents the app reads on the device: MIME types and the extensions that map to them. */
 object FileTypes {
     const val PDF = "application/pdf"
     const val DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -298,8 +299,8 @@ data class Project(
     val status: String = ProjectStatus.DRAFT,
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    val inputs: List<ProjectInput> = emptyList(),
-    val document: DocumentSummary? = null,
+    /** The brief, held only from submit until the project closes (contract v0.6). */
+    val document: ProjectDocument? = null,
     val quote: Quote? = null,
     val lockedVersion: Int? = null,
     val submission: Submission? = null,
@@ -310,15 +311,14 @@ data class Project(
     val unreadComments: Int = 0,
     val history: List<HistoryEntry> = emptyList(),
     val screening: ProjectScreening? = null,
+    /** Set once the server deleted the brief, title, comments and notes (accepted, cancelled, rejected). */
+    val contentDeletedAt: String? = null,
 ) {
     val isEditable: Boolean get() = ProjectStatus.isEditable(status)
 
     /** Screening refused the project: the brief is frozen and only deletion is offered. */
     val isRejected: Boolean get() = screening?.status == "rejected"
 
-    /** The quote cannot be submitted against: missing, stale, expired or used. */
-    val quoteIsStale: Boolean
-        get() = quote == null || document == null || quote.documentVersion != document.version || quote.status != "current"
 }
 
 @Serializable
@@ -348,24 +348,6 @@ data class HistoryEntry(
     val note: String = "",
 )
 
-@Serializable
-data class ProjectInput(
-    val id: String,
-    val kind: String = "text",     // voice | text | file; anything newer reads as text
-    val text: String = "",
-    val audioId: String? = null,
-    val durationSec: Int? = null,
-    val languageDetected: String? = null,
-    val audioExpiresAt: String? = null,
-    val fileId: String? = null,
-    val fileName: String? = null,
-    val pageCount: Int? = null,
-    val screening: InputScreening? = null,
-    /** Set once the raw text was purged after the project closed; `text` is empty then. */
-    val purgedAt: String? = null,
-    val createdAt: String? = null,
-)
-
 /** clear | review | rejected. Only rejected changes what the client sees. */
 @Serializable
 data class ProjectScreening(
@@ -374,24 +356,22 @@ data class ProjectScreening(
     val checkedAt: String? = null,
 )
 
-/** clear | review; [notice] is shown once after saving (e.g. a removed API key). */
+/** The brief as the server holds it after submit. */
 @Serializable
-data class InputScreening(
-    val status: String = "clear",
-    val notice: String? = null,
-)
-
-@Serializable
-data class DocumentSummary(
-    val version: Int,
+data class ProjectDocument(
+    val version: Int = 0,
     val title: String = "",
+    val sections: List<Section> = emptyList(),
+    val documentHash: String? = null,
     val updatedAt: String? = null,
-    val locked: Boolean = false,
-)
+) {
+    fun asDocument() = Document(version = version, title = title, sections = sections, createdAt = updatedAt, source = "submitted")
+}
 
 @Serializable
 data class Document(
-    val version: Int,
+    /** Server documents carry a version; stateless AI results (v0.6) don't, and drafts number their own. */
+    val version: Int = 0,
     val title: String = "",
     val sections: List<Section> = emptyList(),
     val createdAt: String? = null,
@@ -400,7 +380,9 @@ data class Document(
     val generatedFrom: GeneratedFrom? = null,
 ) {
     fun section(id: String): Section? = sections.firstOrNull { it.id == id }
-    fun summary() = DocumentSummary(version = version, title = title, updatedAt = createdAt)
+
+    /** What the AI and quote calls take: title and section bodies only. */
+    fun body() = DocumentBody(title = title, sections = sections.map { SectionBody(it.id, it.body) })
 }
 
 @Serializable
@@ -417,7 +399,8 @@ data class Section(
 @Serializable
 data class Quote(
     val id: String,
-    val documentVersion: Int,
+    /** Local brief version it priced (set by the app; the server tracks [documentHash]). */
+    val documentVersion: Int = 0,
     val status: String = "current", // current | stale | expired | used
     val credits: Int,
     val inr: Int? = null,
@@ -429,6 +412,8 @@ data class Quote(
     val assumptions: List<String> = emptyList(),
     val createdAt: String? = null,
     val expiresAt: String? = null,
+    /** Display only; the app never computes it. */
+    val documentHash: String? = null,
 )
 
 @Serializable
@@ -520,113 +505,70 @@ data class RevisionRequest(
 )
 
 @Serializable
-data class CreateProjectRequest(val title: String = "")
+data class RevisionRequestBody(val message: String)
 
-@Serializable
-data class PatchProjectRequest(val title: String)
-
-@Serializable
-data class PatchInputRequest(val text: String)
-
-@Serializable
-data class UploadUrlRequest(
-    val contentType: String = "audio/m4a",
-    val bytes: Long,
-    val durationSec: Int,
-)
-
-@Serializable
-data class UploadUrlResponse(
-    val audioId: String,
-    val uploadUrl: String,
-    val method: String = "PUT",
-    val headers: Map<String, String> = emptyMap(),
-    val expiresAt: String? = null,
-)
-
-@Serializable
-data class FileUploadUrlRequest(
-    val fileName: String,
-    val contentType: String,
-    val bytes: Long,
-)
-
-@Serializable
-data class FileUploadUrlResponse(
-    val fileId: String,
-    val uploadUrl: String,
-    val method: String = "PUT",
-    val headers: Map<String, String> = emptyMap(),
-    val expiresAt: String? = null,
-)
-
-/** Result of the `extract` job. [pageCount] is null for txt/md/rtf and some docx. */
-@Serializable
-data class ExtractResult(
-    val fileId: String,
-    val fileName: String = "",
-    val text: String = "",
-    val pageCount: Int? = null,
-    val truncated: Boolean = false,
-    val notice: String? = null,
-)
-
-@Serializable
-data class TranscribeRequest(val audioId: String, val languageHint: String? = null)
-
-@Serializable
-data class TranscriptResult(
-    val transcript: String = "",
-    val languageDetected: String? = null,
-    val durationSec: Int? = null,
-)
-
-@Serializable
-data class AddInputRequest(
-    val kind: String,
-    val text: String,
-    val audioId: String? = null,
-    val languageDetected: String? = null,
-    val durationSec: Int? = null,
-    val fileId: String? = null,
-)
-
-@Serializable
-data class InstructionRequest(val instruction: String = "")
-
-@Serializable
-data class SaveDocumentRequest(
-    val baseVersion: Int,
-    val title: String? = null,
-    val sections: List<SectionBody>,
-)
+// ---------- Stateless AI, quotes, submit (contract v0.6) ----------
 
 @Serializable
 data class SectionBody(val id: String, val body: String)
 
+/** A brief as sent to the server: headings and hints are the server's, so only bodies go. */
 @Serializable
-data class VersionsResponse(val versions: List<VersionSummary> = emptyList())
+data class DocumentBody(val title: String, val sections: List<SectionBody>)
 
 @Serializable
-data class VersionSummary(
-    val version: Int,
-    val createdAt: String? = null,
-    val source: String = "ai",
-    val changeSummary: String? = null,
+data class AiInput(
+    val kind: String,                 // voice | text | file
+    val text: String,
+    val languageDetected: String? = null,
+    val fileName: String? = null,
 )
 
 @Serializable
-data class SubmitRequest(
-    val quoteId: String,
+data class AiDraftRequest(
+    val inputs: List<AiInput>,
+    val title: String? = null,
+    val instruction: String? = null,
+)
+
+@Serializable
+data class AiAppendRequest(val document: DocumentBody, val inputs: List<AiInput>)
+
+@Serializable
+data class AiRegenerateRequest(
+    val document: DocumentBody,
+    val sectionId: String,
+    val instruction: String? = null,
+    val inputs: List<AiInput>? = null,
+)
+
+@Serializable
+data class AiDocument(
+    val title: String = "",
+    val sections: List<Section> = emptyList(),
+    val changeSummary: String? = null,
+)
+
+/** Result of the draft, append and regenerate jobs. [notices] name redactions to repeat locally. */
+@Serializable
+data class AiDocumentResult(val document: AiDocument, val notices: List<String> = emptyList())
+
+@Serializable
+data class QuoteRequest(val document: DocumentBody)
+
+@Serializable
+data class QuoteResult(val quote: Quote, val quoteToken: String)
+
+@Serializable
+data class SubmitProjectRequest(
+    val document: DocumentBody,
+    val quoteToken: String,
     val githubUsername: String? = null,
     val awsAccountId: String? = null,
 )
 
 @Serializable
-data class ResubmitRequest(val quoteId: String)
-
-@Serializable
-data class RevisionRequestBody(val message: String)
+data class ResubmitRequest(val document: DocumentBody, val quoteToken: String)
 
 // ---------- Delivery targets (section 12) ----------
 
@@ -729,6 +671,8 @@ data class Job(
 ) {
     val isDone get() = status == "done"
     val isFailed get() = status == "failed"
+    /** v0.6: the result was read or aged out and is gone; run the call again. */
+    val isExpired get() = status == "expired"
 }
 
 @Serializable

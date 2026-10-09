@@ -102,7 +102,7 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
                         style = DwType.display, color = Ink.ink,
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(project.title.ifBlank { "Untitled project" }, style = DwType.body, color = Ink.graphite)
+                    Text(StatusCopy.projectTitle(project, container.drafts.get(project.id)?.displayTitle), style = DwType.body, color = Ink.graphite)
                     if (project.status == ProjectStatus.ACCEPTED) {
                         Text("Accepted on ${Time.shortDate(project.history.lastOrNull { it.status == ProjectStatus.ACCEPTED }?.at ?: project.updatedAt)}", style = DwType.secondary, color = Ink.moss)
                     }

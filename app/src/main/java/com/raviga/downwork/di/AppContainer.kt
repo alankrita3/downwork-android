@@ -3,12 +3,10 @@ package com.raviga.downwork.di
 import android.app.Application
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.raviga.downwork.BuildConfig
-import com.raviga.downwork.data.api.AudioUploader
 import com.raviga.downwork.data.api.AuthInterceptor
 import com.raviga.downwork.data.api.DownWorkApi
 import com.raviga.downwork.data.api.JobRunner
 import com.raviga.downwork.data.api.ReRegisterAuthenticator
-import com.raviga.downwork.data.audio.AudioRecorder
 import com.raviga.downwork.data.audio.DictationEngine
 import com.raviga.downwork.data.billing.BillingManager
 import com.raviga.downwork.data.demo.DemoApi
@@ -109,18 +107,27 @@ class AppContainer(private val app: Application) {
     }
 
     val jobs = JobRunner(api, json)
-    val uploader = AudioUploader(plainHttp)
 
     val session = SessionRepository(api, json, jobs, sessionStore, prefs, cache)
-    val projects = ProjectRepository(api, json, jobs, uploader, cache)
+    val projects = ProjectRepository(api, json, cache)
+    val ai = com.raviga.downwork.data.repo.AiRepository(api, json, jobs)
+
+    /** Drafts live only on this phone, sealed with a Keystore key (contract v0.6). */
+    val draftStore = com.raviga.downwork.data.drafts.DraftStore(
+        java.io.File(app.filesDir, "drafts"),
+        json,
+        com.raviga.downwork.data.drafts.KeystoreSealer(),
+    )
+    val drafts = com.raviga.downwork.data.repo.DraftRepository(draftStore, ai, projects)
     val billing = BillingManager(app, BuildConfig.REVENUECAT_API_KEY)
     val credits = CreditsRepository(api, json, cache, billing)
     val push = PushTokenRegistrar(app, prefs, session, appScope)
 
     val files = com.raviga.downwork.data.files.FileImporter(app)
+    val extractor = com.raviga.downwork.data.files.TextExtractor(app)
+    val exports = com.raviga.downwork.data.files.ExportBuilder(app, plainHttp, draftStore)
 
     val dictation = DictationEngine(app)
-    val recorder = AudioRecorder(app)
 
     private val _events = MutableSharedFlow<AppEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<AppEvent> = _events.asSharedFlow()

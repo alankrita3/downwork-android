@@ -73,8 +73,20 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(busy = true, error = null, exportUrl = null, exportMessage = "Collecting your data") }
             runCatching { container.session.exportData { st -> _state.update { it.copy(exportMessage = st.message ?: it.exportMessage) } } }
-                .onSuccess { r -> _state.update { it.copy(exportUrl = r.downloadUrl, exportMessage = null, notice = "Your download is ready. The link works for ${container.session.config.value.retention.exportLinkHours} hours.") } }
+                .onSuccess { r -> _state.update { it.copy(exportUrl = r.downloadUrl, exportMessage = null, notice = "Your data is ready, with the drafts from this phone added. Choose where to save it.") } }
                 .onFailure { e -> _state.update { it.copy(error = e.userLine(), exportMessage = null) } }
+            _state.update { it.copy(busy = false) }
+        }
+    }
+
+    /** Saves the server's zip, plus this phone's drafts, into the file the client picked. */
+    fun saveExport(target: android.net.Uri) {
+        val url = _state.value.exportUrl ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, error = null, exportMessage = "Saving") }
+            runCatching { container.exports.write(url, target) }
+                .onSuccess { _state.update { it.copy(exportUrl = null, exportMessage = null, notice = "Saved.") } }
+                .onFailure { e -> _state.update { it.copy(exportMessage = null, error = e.message ?: e.userLine()) } }
             _state.update { it.copy(busy = false) }
         }
     }
@@ -82,7 +94,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun deleteEverything() {
         viewModelScope.launch {
             _state.update { it.copy(busy = true, error = null) }
-            runCatching { container.session.deleteMe() }
+            runCatching {
+                container.session.deleteMe()
+                // Drafts were only ever here; they go too.
+                container.draftStore.wipe()
+            }
                 .onSuccess { _state.update { it.copy(deleted = true) } }
                 .onFailure { e -> _state.update { it.copy(error = e.userLine()) } }
             _state.update { it.copy(busy = false) }

@@ -76,13 +76,15 @@ fun TermsScreen(nav: NavController) {
                 )
             }
             Spacer(Modifier.height(20.dp))
+            Text("What we don't keep", style = DwType.heading, color = Ink.ink)
+            Spacer(Modifier.height(8.dp))
             Text(
-                "DownWork keeps what you tell us about your project, the briefs we write from it, and a record of the credits you buy and spend. We use it only to write your brief, quote it and build what you approve.",
+                "Recordings and files never leave your phone. Drafts are stored only on your phone. To write or price a brief, its text is sent to our AI, used once, and not stored by us. When you submit, we keep the brief to review and build it, and delete it when you accept the delivery.",
                 style = DwType.body, color = Ink.ink,
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "There is no account. Your projects belong to this phone until you move them with a recovery key. You can download or delete everything from Settings.",
+                "There is no account. Submitted projects and credits move to a new phone with a recovery key; drafts stay on this one. You can download or delete everything from Settings.",
                 style = DwType.body, color = Ink.ink,
             )
             Spacer(Modifier.height(24.dp))

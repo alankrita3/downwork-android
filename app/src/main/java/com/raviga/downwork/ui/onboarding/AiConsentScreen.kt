@@ -71,12 +71,12 @@ fun AiConsentScreen(nav: NavController) {
             Spacer(Modifier.height(16.dp))
             Text("Before we send this to AI", style = DwType.title, color = Ink.ink)
             Spacer(Modifier.height(24.dp))
-            Block("What is sent", "Your recordings, documents you upload and the words in them, plus anything you type about the project.")
-            Block("To whom", providers.joinToString(", ") + ". They process it to write your brief and do not keep it to train models.")
+            Block("What is sent", "Only the text of your notes and brief, to write and price it. Never your recordings or files. We don't store it.")
+            // The backend's provider line carries the full disclosure (retention, no training); show it as sent.
+            Block("To whom", providers.joinToString("\n"))
             Block(
                 "How long",
-                "Recordings are deleted after ${config.retention.audioDays} days and documents as soon as they're read. " +
-                    "Your notes are deleted ${config.retention.inputsDaysAfterClose} days after the project closes; the brief stays until you delete it.",
+                "Nothing, until you submit. Drafts are kept only on this phone. When you submit, we keep the brief to review and build it, and delete it when you accept the delivery.",
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {

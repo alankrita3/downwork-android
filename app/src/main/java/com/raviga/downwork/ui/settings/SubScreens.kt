@@ -160,6 +160,9 @@ fun PrivacyScreen(nav: NavController) {
     val legal = state.config.legal
     val aiOn = state.me?.consent?.aiGranted == true
     var confirmDelete by remember { mutableStateOf(false) }
+    val saveExport = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri -> if (uri != null) vm.saveExport(uri) }
 
     LaunchedEffect(state.deleted) {
         if (state.deleted) nav.navigate(Routes.WELCOME) { popUpTo(0) { inclusive = true } }
@@ -171,7 +174,7 @@ fun PrivacyScreen(nav: NavController) {
                 Column(Modifier.weight(1f)) {
                     Text("AI processing", style = DwType.body, color = Ink.ink)
                     Text(
-                        if (aiOn) "Your words are sent to ${state.config.ai.providers.joinToString(", ").ifBlank { "our AI providers" }} to write briefs." else "Off. DownWork cannot write briefs until this is on.",
+                        if (aiOn) "On. Only the text of your notes and brief is sent, to write and price it: ${state.config.ai.providers.joinToString("; ").ifBlank { "our AI provider" }}." else "Off. DownWork cannot write briefs until this is on.",
                         style = DwType.secondary, color = Ink.graphite,
                     )
                 }
@@ -181,28 +184,33 @@ fun PrivacyScreen(nav: NavController) {
             Column(Modifier.padding(horizontal = Dw.gutter)) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Recordings are deleted ${state.config.retention.audioDays} days after upload and documents as soon as they're read. " +
-                        "Your notes are deleted ${state.config.retention.inputsDaysAfterClose} days after a project closes; briefs stay until you delete them.",
+                    "Recordings and files never leave this phone, and drafts are kept only here. A submitted brief is held by DownWork " +
+                        "until you accept the delivery (or the project is cancelled), then deleted.",
                     style = DwType.caption, color = Ink.graphite,
                 )
                 Spacer(Modifier.height(24.dp))
             }
             DwRow(
                 title = "Download my data",
-                subtitle = state.exportMessage ?: "A zip of your projects, briefs, transcripts and credit history",
+                subtitle = state.exportMessage ?: "A zip of your submitted projects, the drafts on this phone, and your credit history",
                 onClick = if (!state.busy) ({ vm.export() }) else null,
                 chevron = false,
             )
             if (state.exportMessage != null) ProgressRule(Modifier.padding(horizontal = Dw.gutter))
-            state.exportUrl?.let { url ->
+            state.exportUrl?.let {
                 Column(Modifier.padding(horizontal = Dw.gutter)) {
                     InlineNotice(state.notice, color = Ink.moss)
-                    InlineAction("Open download", onClick = { openLink(context, url) })
+                    InlineAction("Save the file", enabled = !state.busy, onClick = {
+                        saveExport.launch("DownWork data ${java.time.LocalDate.now()}.zip")
+                    })
                 }
+            }
+            if (state.exportUrl == null && state.notice == "Saved.") {
+                InlineNotice(state.notice, Modifier.padding(horizontal = Dw.gutter), color = Ink.moss)
             }
             DwRow(
                 title = "Delete my data",
-                subtitle = "Projects, recordings, briefs and this phone's link. Credits history is kept anonymised, as the law requires.",
+                subtitle = "Drafts on this phone, submitted projects and this phone's link. Credits history is kept anonymised, as the law requires.",
                 titleColor = Ink.brick,
                 onClick = if (!state.busy) ({ confirmDelete = true }) else null,
                 chevron = false,
@@ -234,7 +242,7 @@ fun PrivacyScreen(nav: NavController) {
             title = { Text("Delete everything?", style = DwType.heading, color = Ink.ink) },
             text = {
                 Text(
-                    "Your projects, recordings and briefs are deleted after ${state.config.retention.deletionGraceDays} days. Recovering with your key before then cancels it. Active projects must be finished or cancelled first.",
+                    "Your drafts on this phone are deleted now. Submitted projects are deleted after ${state.config.retention.deletionGraceDays} days; recovering with your key before then cancels it. Active projects must be finished or cancelled first.",
                     style = DwType.body, color = Ink.graphite,
                 )
             },
@@ -261,7 +269,9 @@ fun RecoveryScreen(nav: NavController) {
     ScreenScaffold(topBar = { DwTopBar(title = "Move to another phone", onBack = { nav.popBackStack() }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
             Spacer(Modifier.height(8.dp))
-            Text("There is no account. This key is the only way to get your projects and credits back after a reinstall or on a new phone. Keep it somewhere safe.", style = DwType.body, color = Ink.ink)
+            Text("There is no account. This key is the only way to get your submitted projects and credits back after a reinstall or on a new phone. Keep it somewhere safe.", style = DwType.body, color = Ink.ink)
+            Spacer(Modifier.height(8.dp))
+            Text("Drafts stay on this phone: they are never sent anywhere, so a key can't move them.", style = DwType.secondary, color = Ink.graphite)
             Spacer(Modifier.height(24.dp))
             SectionHeading("This phone's key")
             Spacer(Modifier.height(12.dp))
@@ -282,7 +292,7 @@ fun RecoveryScreen(nav: NavController) {
             Spacer(Modifier.height(Dw.sectionGap))
             SectionHeading("Bring projects here")
             Spacer(Modifier.height(12.dp))
-            Text("Enter the key from your other phone. This phone then shows that phone's projects and credits instead of its own.", style = DwType.body, color = Ink.graphite)
+            Text("Enter the key from your other phone. This phone then shows that phone's submitted projects and credits instead of its own. Drafts on this phone stay here.", style = DwType.body, color = Ink.graphite)
             Spacer(Modifier.height(12.dp))
             DwTextField(value = otherKey, onValueChange = { otherKey = it }, placeholder = "dwrk-…", singleLine = true, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false))
             InlineNotice(state.error)

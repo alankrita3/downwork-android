@@ -12,7 +12,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * The DownWork API (api-contract.md v0.3). Implemented by Retrofit against the
+ * The DownWork API (api-contract.md v0.6, local-first). Implemented by Retrofit against the
  * real backend and by [com.raviga.downwork.data.demo.DemoApi] when no backend
  * URL is configured. Non-2xx responses surface as [ApiException] via [apiCall].
  */
@@ -53,85 +53,31 @@ interface DownWorkApi {
     @PUT("me/consent")
     suspend fun putConsent(@Body body: ConsentRequest): ConsentState
 
-    // Projects
+    // Stateless AI (v0.6): text in, brief out, nothing kept. All are jobs.
+    @POST("ai/draft")
+    suspend fun aiDraft(@Body body: AiDraftRequest): JobEnvelope
+
+    @POST("ai/append")
+    suspend fun aiAppend(@Body body: AiAppendRequest): JobEnvelope
+
+    @POST("ai/regenerate")
+    suspend fun aiRegenerate(@Body body: AiRegenerateRequest): JobEnvelope
+
+    @POST("quotes")
+    suspend fun createQuote(@Body body: QuoteRequest): JobEnvelope
+
+    // Projects: they exist on the server only from submit on.
     @GET("projects")
     suspend fun projects(@Query("before") before: String? = null, @Query("limit") limit: Int = 50): ProjectsResponse
 
     @POST("projects")
-    suspend fun createProject(@Body body: CreateProjectRequest = CreateProjectRequest()): Project
+    suspend fun submitProject(@Header("Idempotency-Key") idempotencyKey: String, @Body body: SubmitProjectRequest): Project
 
     @GET("projects/{id}")
     suspend fun project(@Path("id") id: String): Project
 
-    @PATCH("projects/{id}")
-    suspend fun patchProject(@Path("id") id: String, @Body body: PatchProjectRequest): Project
-
-    @DELETE("projects/{id}")
-    suspend fun deleteProject(@Path("id") id: String)
-
     @POST("projects/{id}/cancel")
     suspend fun cancelProject(@Path("id") id: String, @Body body: Empty = Empty()): Project
-
-    // Inputs
-    @POST("projects/{id}/audio/upload-url")
-    suspend fun audioUploadUrl(@Path("id") id: String, @Body body: UploadUrlRequest): UploadUrlResponse
-
-    @POST("projects/{id}/files/upload-url")
-    suspend fun fileUploadUrl(@Path("id") id: String, @Body body: FileUploadUrlRequest): FileUploadUrlResponse
-
-    @POST("projects/{id}/files/{fileId}/extract")
-    suspend fun extractFile(@Path("id") id: String, @Path("fileId") fileId: String): JobEnvelope
-
-    @POST("projects/{id}/transcribe")
-    suspend fun transcribe(@Path("id") id: String, @Body body: TranscribeRequest): JobEnvelope
-
-    @POST("projects/{id}/inputs")
-    suspend fun addInput(@Path("id") id: String, @Body body: AddInputRequest): Project
-
-    @PATCH("projects/{id}/inputs/{inputId}")
-    suspend fun patchInput(@Path("id") id: String, @Path("inputId") inputId: String, @Body body: PatchInputRequest): Project
-
-    @DELETE("projects/{id}/inputs/{inputId}")
-    suspend fun deleteInput(@Path("id") id: String, @Path("inputId") inputId: String): Project
-
-    // Document
-    @POST("projects/{id}/document/generate")
-    suspend fun generateDocument(@Path("id") id: String, @Body body: InstructionRequest = InstructionRequest()): JobEnvelope
-
-    @POST("projects/{id}/document/append")
-    suspend fun appendDocument(@Path("id") id: String, @Body body: Empty = Empty()): JobEnvelope
-
-    @POST("projects/{id}/document/sections/{sectionId}/regenerate")
-    suspend fun regenerateSection(
-        @Path("id") id: String,
-        @Path("sectionId") sectionId: String,
-        @Body body: InstructionRequest,
-    ): JobEnvelope
-
-    @GET("projects/{id}/document")
-    suspend fun document(@Path("id") id: String): Document
-
-    @PUT("projects/{id}/document")
-    suspend fun saveDocument(@Path("id") id: String, @Body body: SaveDocumentRequest): Document
-
-    @GET("projects/{id}/document/versions")
-    suspend fun documentVersions(@Path("id") id: String): VersionsResponse
-
-    @GET("projects/{id}/document/versions/{v}")
-    suspend fun documentVersion(@Path("id") id: String, @Path("v") version: Int): Document
-
-    @POST("projects/{id}/document/versions/{v}/restore")
-    suspend fun restoreDocumentVersion(@Path("id") id: String, @Path("v") version: Int, @Body body: Empty = Empty()): Document
-
-    // Quote, submit, review
-    @POST("projects/{id}/quote")
-    suspend fun quote(@Path("id") id: String, @Body body: Empty = Empty()): JobEnvelope
-
-    @GET("projects/{id}/quote")
-    suspend fun latestQuote(@Path("id") id: String): Quote
-
-    @POST("projects/{id}/submit")
-    suspend fun submit(@Path("id") id: String, @Header("Idempotency-Key") idempotencyKey: String, @Body body: SubmitRequest): Project
 
     @POST("projects/{id}/resubmit")
     suspend fun resubmit(@Path("id") id: String, @Header("Idempotency-Key") idempotencyKey: String, @Body body: ResubmitRequest): Project

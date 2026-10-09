@@ -36,7 +36,6 @@ object DescribeWith {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DescribeChooserSheet(projectTitle: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
-    val retention by LocalAppContainer.current.session.config.collectAsStateWithLifecycle()
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -77,7 +76,7 @@ fun DescribeChooserSheet(projectTitle: String?, onPick: (String) -> Unit, onDism
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "Recordings are deleted after ${retention.retention.audioDays} days and documents as soon as they're read. Only the text is kept, for your brief.",
+                "Your recordings and files never leave your phone. Drafts are kept only on this phone.",
                 style = DwType.caption,
                 color = Ink.graphite,
                 modifier = Modifier.padding(horizontal = Dw.gutter),

@@ -49,7 +49,7 @@ class JobRunner(private val api: DownWorkApi, private val json: Json) {
         val startedAt = System.currentTimeMillis()
         onProgress(job.state())
         var failures = 0
-        while (!job.isDone && !job.isFailed) {
+        while (!job.isDone && !job.isFailed && !job.isExpired) {
             val elapsed = System.currentTimeMillis() - startedAt
             if (elapsed > MAX_WAIT_MS) {
                 throw ApiException(ApiException.JOB_TIMEOUT, message = "This is taking longer than usual.")
@@ -66,6 +66,7 @@ class JobRunner(private val api: DownWorkApi, private val json: Json) {
             onProgress(job.state())
         }
         if (job.isFailed) throw JobFailed(job)
+        if (job.isExpired) throw ApiException(ApiException.JOB_EXPIRED, message = "The result expired before it was read.")
         val result = job.result ?: throw ApiException("job_failed", message = "The job finished without a result.")
         return json.decodeFromJsonElement(deserializer, result)
     }

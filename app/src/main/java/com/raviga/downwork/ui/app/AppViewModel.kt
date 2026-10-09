@@ -69,6 +69,7 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val session = container.session
             session.warmFromCache()
+            container.drafts.load()
             container.projects.warmFromCache()
             container.credits.warmFromCache()
             val prefs = container.prefs.current()

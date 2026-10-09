@@ -22,3 +22,7 @@
 
 # RevenueCat
 -keep class com.revenuecat.purchases.** { *; }
+
+# PDFBox (on-device PDF text): optional JPEG 2000 codec is not bundled.
+-dontwarn com.gemalto.jp2.**
+-dontwarn org.bouncycastle.**

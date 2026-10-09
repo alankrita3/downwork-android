@@ -73,10 +73,13 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
     val vm: DocumentViewModel = viewModel(key = "doc_$projectId") { DocumentViewModel(container, projectId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val project = state.project
+    val draft = state.draft
     val document = state.document
-    val rejected = project?.isRejected == true
-    // A project screening refused is frozen: nothing to edit, quote or add.
-    val editable = (project?.isEditable ?: false) && !rejected
+    val rejected = state.refused
+    // A refused brief is frozen: nothing to edit, quote or add.
+    val editable = state.editable
+    // Edits and quotes always go through the local draft, whichever id opened this screen.
+    val draftId = draft?.id ?: projectId
     var confirmDelete by remember { mutableStateOf(false) }
     var chooser by remember { mutableStateOf(false) }
 
@@ -101,22 +104,22 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
             DwTopBar(
                 onBack = { nav.popBackStack() },
                 actions = {
-                    if (document != null) InlineAction("Versions", onClick = { nav.navigate(Routes.versions(projectId)) })
-                    if (project?.status == ProjectStatus.DRAFT && !rejected) InlineAction("Delete", color = Ink.brick, onClick = { confirmDelete = true })
+                    if (draft != null && draft.versions.isNotEmpty()) InlineAction("Versions", onClick = { nav.navigate(Routes.versions(draftId)) })
+                    if (state.isLocalDraft && !rejected) InlineAction("Delete", color = Ink.brick, onClick = { confirmDelete = true })
                 },
             )
         },
         bottomBar = {
-            if (project == null) return@ScreenScaffold
+            if (draft == null && project == null) return@ScreenScaffold
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 when {
                     rejected -> PrimaryButton("Delete draft", onClick = { confirmDelete = true })
                     editable && document != null -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         PrimaryButton(
-                            if (project.status == ProjectStatus.CHANGES_REQUESTED) "Get a new quote" else "Get a quote",
+                            if (state.status == ProjectStatus.CHANGES_REQUESTED) "Get a new quote" else "Get a quote",
                             enabled = state.busyMessage == null,
-                            onClick = { nav.navigate(Routes.quote(projectId)) },
+                            onClick = { nav.navigate(Routes.quote(draftId)) },
                             modifier = Modifier.weight(1.4f),
                         )
                         Spacer(Modifier.width(12.dp))
@@ -126,15 +129,16 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                             modifier = Modifier.weight(1f), icon = Icons.Outlined.Add,
                         )
                     }
-                    editable -> PrimaryButton("Write the brief", enabled = state.busyMessage == null && project.inputs.isNotEmpty(), onClick = { vm.generate() })
-                    else -> PrimaryButton("View status", onClick = { nav.navigate(Routes.forProject(projectId, project.status, true)) })
+                    editable -> PrimaryButton("Write the brief", enabled = state.busyMessage == null && draft?.inputs?.isNotEmpty() == true, onClick = { vm.generate() })
+                    project != null -> PrimaryButton("View status", onClick = { nav.navigate(Routes.forProject(project.id, project.status)) })
                 }
             }
         },
     ) { padding ->
         when {
-            project == null && state.error != null -> ErrorState(state.error!!, Modifier.padding(padding), onRetry = { vm.refresh() })
-            project == null -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
+            draft == null && project == null && state.error != null -> ErrorState(state.error!!, Modifier.padding(padding), onRetry = { vm.refresh() })
+            draft == null && project == null && state.loading -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
+            draft == null && project == null -> ErrorState("That draft is no longer on this phone.", Modifier.padding(padding), onRetry = { nav.popBackStack() })
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 item {
                     Column(Modifier.padding(horizontal = Dw.gutter)) {
@@ -147,33 +151,40 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                             Spacer(Modifier.height(8.dp))
                         }
                         EditableTitle(
-                            title = (document?.title ?: project.title).ifBlank { "Untitled project" },
+                            title = state.title,
                             editable = editable,
                             onSave = { vm.saveTitle(it) },
                         )
                         Spacer(Modifier.height(8.dp))
-                        StatusLine(project, nav)
-                        state.inputNotice?.let { InlineNotice(it, color = Ink.graphite) }
+                        StatusLine(state, nav)
+                        state.notices.forEach { InlineNotice(it, color = Ink.graphite) }
                         Spacer(Modifier.height(Dw.sectionGap))
                         if (rejected) {
-                            RefusedBlock(project.screening?.reason, state.supportEmail)
+                            RefusedBlock(state.refusalReason, state.supportEmail)
                             Spacer(Modifier.height(Dw.sectionGap))
                         }
                     }
                 }
-                if (document == null) {
+                if (document == null && state.contentGone) {
+                    item {
+                        Column(Modifier.padding(horizontal = Dw.gutter)) {
+                            SectionHint("The brief was deleted from our servers when this project closed, and this phone has no copy of it.")
+                            Spacer(Modifier.height(Dw.sectionGap))
+                        }
+                    }
+                } else if (document == null) {
                     item {
                         Column(Modifier.padding(horizontal = Dw.gutter)) {
                             SectionHeading("Your description")
                             Spacer(Modifier.height(12.dp))
-                            if (project.inputs.isEmpty()) {
+                            val inputs = draft?.inputs.orEmpty()
+                            if (inputs.isEmpty()) {
                                 SectionHint("Nothing yet. Speak, type or upload a description.")
                                 Spacer(Modifier.height(16.dp))
                                 if (editable) SecondaryButton("Describe it", onClick = { chooser = true })
                             } else {
-                                project.inputs.forEach { input ->
-                                    if (input.purgedAt != null) SectionHint("Deleted ${Time.shortDate(input.purgedAt)}, after the project closed.")
-                                    else BodyText(input.text)
+                                inputs.forEach { input ->
+                                    BodyText(input.text)
                                     Spacer(Modifier.height(4.dp))
                                     Text(inputSource(input) + " " + Time.relative(input.createdAt), style = DwType.caption, color = Ink.graphite)
                                     Spacer(Modifier.height(16.dp))
@@ -192,7 +203,7 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                                     SectionHeading(section.heading.ifBlank { SectionIds.headings[section.id] ?: section.id }, Modifier.weight(1f))
                                     if (editable) {
-                                        InlineAction("Edit", enabled = state.busyMessage == null, onClick = { nav.navigate(Routes.section(projectId, section.id)) })
+                                        InlineAction("Edit", enabled = state.busyMessage == null, onClick = { nav.navigate(Routes.section(draftId, section.id)) })
                                         InlineAction("Regenerate", enabled = state.busyMessage == null, onClick = { vm.openRegenerate(section.id) })
                                     }
                                 }
@@ -204,7 +215,7 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                     }
                 }
                 item {
-                    if (project.status == ProjectStatus.DRAFT && document != null) {
+                    if (state.isLocalDraft && document != null) {
                         Spacer(Modifier.height(8.dp))
                     }
                     Spacer(Modifier.height(24.dp))
@@ -224,12 +235,12 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
         )
     }
 
-    if (chooser && project != null) {
+    if (chooser && draft != null) {
         DescribeChooserSheet(
-            projectTitle = (document?.title ?: project.title).ifBlank { "this project" },
+            projectTitle = state.title.ifBlank { "this project" },
             onPick = { tab ->
                 chooser = false
-                nav.navigate(Routes.capture(projectId, if (document != null) "append" else "new", tab))
+                nav.navigate(Routes.capture(draft.id, if (document != null) "append" else "new", tab))
             },
             onDismiss = { chooser = false },
         )
@@ -266,7 +277,7 @@ private fun RefusedBlock(reason: String?, supportEmail: String) {
     }
 }
 
-private fun inputSource(input: com.raviga.downwork.data.api.ProjectInput): String = when (input.kind) {
+private fun inputSource(input: com.raviga.downwork.data.drafts.LocalInput): String = when (input.kind) {
     "voice" -> "Spoken"
     "file" -> "From ${input.fileName ?: "a document"}"
     else -> "Typed"
@@ -300,17 +311,23 @@ private fun EditableTitle(title: String, editable: Boolean, onSave: (String) -> 
 }
 
 @Composable
-private fun StatusLine(project: com.raviga.downwork.data.api.Project, nav: NavController) {
+private fun StatusLine(state: DocumentViewModel.State, nav: NavController) {
+    val project = state.project
+    val draft = state.draft
     when {
-        project.status == ProjectStatus.CHANGES_REQUESTED -> Text(
+        project?.status == ProjectStatus.CHANGES_REQUESTED -> Text(
             "The team left comments. Read them, edit, then get a new quote.",
             style = DwType.secondary, color = Ink.cobalt,
             modifier = Modifier.clickable { nav.navigate(Routes.status(project.id)) },
         )
-        !project.isEditable && project.submission?.submittedAt != null -> Text(
+        project != null && project.submission?.submittedAt != null -> Text(
             "Submitted on ${Time.shortDate(project.submission.submittedAt)}, locked",
             style = DwType.secondary, color = Ink.graphite,
         )
-        else -> Text(StatusCopy.rowLine(project), style = DwType.secondary, color = Ink.graphite)
+        project != null -> Text(StatusCopy.rowLine(project), style = DwType.secondary, color = Ink.graphite)
+        draft != null -> Text(
+            "Draft, on this phone only. Edited ${Time.relative(draft.updatedAt)}",
+            style = DwType.secondary, color = Ink.graphite,
+        )
     }
 }
