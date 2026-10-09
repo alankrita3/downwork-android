@@ -142,7 +142,7 @@ private fun Intro(heroHeight: Dp) {
             )
             Spacer(Modifier.height(18.dp))
             ChipRow(perRow = 2) {
-                Chip("Working project", icon = Icons.Outlined.Check)
+                Chip("Working project delivered", icon = Icons.Outlined.Check)
                 Chip("Fast delivery", icon = Icons.Outlined.Bolt)
                 Chip("You approve the quote", dot = Ink.marigold)
                 Chip("Code handed to you", dot = Ink.teal)
