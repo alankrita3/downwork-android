@@ -52,6 +52,20 @@ class DtoDecodingTest {
         assertEquals(config.credits.packs.map { it.priceHintUsd }, demo.credits.packs.map { it.priceHintUsd })
     }
 
+    /** Captured from the raviga-* dev GET /config on 2026-10-09 (contract v0.8: the rename, shapes as v0.7.1). */
+    @Test
+    fun `v08 config carries the Raviga names and matches the demo`() {
+        val config = json.decodeFromString(AppConfig.serializer(), fixture("config-v08.json")!!)
+        val demo = com.raviga.app.data.demo.DemoApi.demoConfig()
+        assertEquals("RavigaDeployRole", config.delivery.awsRoleName)
+        assertEquals(config.delivery.awsRoleName, demo.delivery.awsRoleName)
+        assertEquals("Raviga Apps Private Limited", config.legal.companyName)
+        assertEquals(config.legal.termsUrl, demo.legal.termsUrl)
+        assertEquals(config.legal.privacyUrl, demo.legal.privacyUrl)
+        assertEquals(config.quote.brackets.map { it.timeline }, demo.quote.brackets.map { it.timeline })
+        assertEquals(config.credits.packs.map { it.productId }, demo.credits.packs.map { it.productId })
+    }
+
     @Test
     fun `v06 submitted project holds its brief until it closes`() {
         val held = """
@@ -77,6 +91,9 @@ class DtoDecodingTest {
         assertEquals("2026-11-10T00:00:00Z", c.contentDeletedAt)
         assertEquals(null, c.document)
         assertEquals("", c.title)
+        // The closed stub has no title; screens name it from the phone's copy of the brief.
+        assertEquals("Tiffin delivery app", com.raviga.app.ui.status.StatusCopy.projectTitle(c, "Tiffin delivery app"))
+        assertEquals("Project RA-A1B2C3", com.raviga.app.ui.status.StatusCopy.projectTitle(c, null))
     }
 
     @Test
