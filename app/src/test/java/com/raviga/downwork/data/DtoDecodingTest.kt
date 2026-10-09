@@ -35,6 +35,23 @@ class DtoDecodingTest {
         return File(url.toURI()).listFiles { f -> f.extension == "json" }?.toList().orEmpty()
     }
 
+    /** Captured from dev GET /config on 2026-10-09 (contract v0.7.1). */
+    @Test
+    fun `v071 config has dollars and bracket timelines`() {
+        val config = json.decodeFromString(com.raviga.downwork.data.api.AppConfig.serializer(), fixture("config-v071.json")!!)
+        assertEquals(10.0, config.credits.creditValueUsd, 0.0)
+        assertEquals(listOf(99.99, 249.99, 499.99, 999.99), config.credits.packs.map { it.priceHintUsd })
+        val timelines = config.quote.brackets.associate { it.id to it.timeline }
+        assertEquals(com.raviga.downwork.data.api.QuoteTimeline(1, 1), timelines["micro"])
+        assertEquals(com.raviga.downwork.data.api.QuoteTimeline(1, 2), timelines["standard"])
+        assertEquals(com.raviga.downwork.data.api.QuoteTimeline(2, 4), timelines["pro"])
+        assertTrue("enterprise" in timelines && timelines["enterprise"] == null)
+        // The demo backend's config says the same.
+        val demo = com.raviga.downwork.data.demo.DemoApi.demoConfig()
+        assertEquals(config.quote.brackets.map { Triple(it.id, it.minCredits, it.timeline) }, demo.quote.brackets.map { Triple(it.id, it.minCredits, it.timeline) })
+        assertEquals(config.credits.packs.map { it.priceHintUsd }, demo.credits.packs.map { it.priceHintUsd })
+    }
+
     @Test
     fun `v06 submitted project holds its brief until it closes`() {
         val held = """
