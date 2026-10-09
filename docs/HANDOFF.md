@@ -72,9 +72,11 @@ PDF (ML Kit's model comes from Play services on first use), store purchases (no 
 - Notifications permission is asked once on the home screen (Android 13+). Change in `HomeScreen.kt`.
 - Light appearance only. The "Workshop" design you approved on iOS (Bricolage Grotesque and Figtree, warm
   white, teal and marigold, clay pictures), built from the same font and picture files. The launcher
-  icon, splash mark and notification icon are still the old name's "D" (with a teal dot), in
-  `res/drawable/ic_launcher_foreground.xml`, `ic_splash_mark.xml` and `ic_notification.xml`; a new icon
-  is yours to pick. None of the clay pictures show the old name.
+  icon, splash mark and notification icon are an interim mark until you pick a logo: a Bricolage
+  Grotesque Bold "R" in ink with a teal full stop. They live in `res/drawable/ic_launcher_foreground.xml`,
+  `ic_splash_mark.xml` and `ic_notification.xml` (vector paths, so a new logo only replaces those three).
+  `docs/icon/make_mark.py` draws them, plus the 1024 PNG given to iOS for its app icon
+  (`docs/icon/AppIcon-1024.png`). None of the clay pictures show the old name.
 - Speech is English only (US, UK, India or Australia accent, from the phone's region), as you asked.
 - `minSdk 26` (Android 8.0, covers ~97% of Indian Android devices); `targetSdk 36` as Play requires.
 
