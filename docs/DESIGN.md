@@ -44,10 +44,11 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 
 - **Dictation.** Android has no in-process equivalent of `SFSpeechRecognizer` that can run
   alongside a recorder: the platform `SpeechRecognizer` lives in another process and takes the
-  microphone. So Capture uses live dictation (restarted across pauses) and sends the text as a
-  `voice` input without audio. Devices without a recognizer fall back to `MediaRecorder` → upload
-  → backend transcription, matching the iOS path. The ink line is driven by the recognizer's RMS
-  callback (about 10 Hz, interpolated) or the recorder's peak amplitude at 20 Hz.
+  microphone. Capture uses only the on-device recogniser (`createOnDeviceSpeechRecognizer`,
+  Android 12+), restarted across pauses; on Android 13+ it checks the language model is installed
+  and asks the phone to download it if not. It never falls back to cloud recognition and keeps no
+  audio. Phones without it get "Type instead" / "Upload a document". The ink line follows the
+  recognizer's RMS callback (about 10 Hz, interpolated).
 - **Reduce motion.** Read from `ANIMATOR_DURATION_SCALE == 0`: the ink line becomes a flat cobalt
   line that pulses opacity; the document reveal still runs but is a single fade per section.
 - **Identity.** No Keychain: the token lives in EncryptedSharedPreferences and is excluded from
@@ -55,8 +56,9 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   silent re-register with the same `installId`; if that returns a different client (this phone was
   revoked), the app starts over and Home offers the recovery key.
 - **Uploads.** The system document picker (`OpenDocument`, filtered to `config.limits.acceptedFileTypes`
-  plus `text/*`); the file is copied to cache, sized, typed by MIME or extension, uploaded to the
-  presigned URL and deleted locally. Choosing "Upload a document" in the chooser opens the picker
+  plus `text/*`); the file is copied to cache, sized, typed by MIME or extension, read on the phone
+  (PDFBox for text PDFs, ML Kit's on-device OCR for scans, parsers for Word/RTF/text/Markdown) and
+  deleted. Nothing is uploaded. Choosing "Upload a document" in the chooser opens the picker
   straight away.
 - **Links.** Privacy, terms, the repo and the CloudFormation quick-create URL open in a Chrome
   Custom Tab with a paper toolbar.
@@ -74,7 +76,8 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); rows Speak ("Talk it through in English or
   Hindi. We write it up."), Type ("Write or paste a description."), Upload a document ("A PDF, Word or
   text file you already have."); footer "Recordings are deleted after N days and documents as soon as
-  they're read. Only the text is kept, for your brief." (N from `config.retention.audioDays`).
+  they're read." replaced in v0.6 by "Your recordings and files never leave your phone. Drafts are
+  kept only on this phone."
 - Upload tab: "Upload a requirements document" / "A PDF, Word, RTF or text file up to 10 MB. We read
   the text, you check it, and the brief is written from it." / "Only the text is kept. The file is
   deleted as soon as it's read, and is never shared with the team." / "Choose a file".

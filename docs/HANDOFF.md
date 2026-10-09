@@ -35,22 +35,32 @@ to the 2026-10-09 terms → upload a PDF → "Here's what we read" → file inpu
 policy refusal shown with the appeal line. The on-device check for keys, cards, Aadhaar and PAN, the
 refused-project block and the demo backend's equivalents were exercised in demo mode.
 
+Contract v0.6 (local-first) was run on dev too: re-consent to the 2026-10-10 terms → typed notes with an
+AWS key kept on purpose → `/ai/draft` (server removed it, notice shown, local note redacted) → `/quotes` (104)
+→ `POST /projects` (DW-DWPJBD, the first time the brief reached the server) → team requested changes → edited
+on the phone → re-quoted (95) → resubmitted (9 credits back) → approved → delivered → accepted → the server
+deleted the brief and title, and the phone's copy is still readable. Drafts on disk were checked to be
+ciphertext. A PDF and a Word file were read on the phone, in debug and in the R8 release build.
+
 The minified release build (R8, signed with a local debug key) was also installed and run against dev:
 register → terms → typed description → AI consent → generated brief → quote, all decoding correctly.
 `./gradlew bundleRelease` refuses to build until items 3 to 6 are in place (`checkReleaseReadiness`), so
 a Play upload cannot ship the demo backend by accident; `assembleRelease` stays open for local checks.
 
-Not exercised end to end: voice capture (the emulator has no speech recogniser; on a real phone the platform
-`SpeechRecognizer` drives live dictation and the ink line), store purchases (no RevenueCat key), and push
+Not exercised end to end: voice capture (the emulator has no on-device speech recogniser; on a real phone
+running Android 12+ the on-device `SpeechRecognizer` drives live dictation and the ink line), OCR of a scanned
+PDF (ML Kit's model comes from Play services on first use), store purchases (no RevenueCat key), and push
 (no `google-services.json`). The code paths exist and compile; they need the items above.
 
 ## Decisions I made that you may want to change
 
-- Voice on Android uses the platform speech recogniser for live dictation (words appear as you speak) and
-  sends the text; devices without it record audio for the backend to transcribe. iOS does both at once.
-- 1 credit = ₹1,000; brackets micro/starter/standard/pro/enterprise; two included revision rounds; audio
-  kept 7 days, uploaded documents deleted once read, raw notes purged 30 days after a project closes;
-  quotes valid 14 days; auto-accept 14 days after delivery. All of these live in the backend
+- Local-first, per your request: drafts are sealed on the phone (AES-256-GCM, Keystore key, no backup), so
+  a draft cannot be recovered on another phone or after a reinstall; only submitted projects move with the
+  recovery key. Voice needs Android 12+ with an offline speech model (most phones sold in India since 2022);
+  older phones type or upload instead, because the only alternative would send audio to Google's cloud.
+- Reading PDFs on the phone adds about 6.5 MB to the app (PDFBox); scans use ML Kit through Play services.
+- 1 credit = ₹1,000; brackets micro/starter/standard/pro/enterprise; two included revision rounds; quotes
+  valid 14 days; auto-accept 14 days after delivery; the server deletes a brief when its project closes. All of these live in the backend
   `/config`; the app renders whatever it is sent.
 - Notifications permission is asked once on the home screen (Android 13+). Change in `HomeScreen.kt`.
 - Light appearance only (white background per your brief). Instrument Serif (open licence) for the
@@ -64,8 +74,10 @@ Not exercised end to end: voice capture (the emulator has no speech recogniser; 
   push back. Options: position credits as a prepaid digital balance consumed in-app for AI drafting and
   quoting (true today), or move project payment to an external invoice. Decide before submission; no code
   depends on it beyond the Credits screen copy.
-- The microphone is only used while the Capture screen is listening; the Data safety form must say voice is
-  sent to OpenAI for transcription and drafting.
+- The microphone is only used while the Capture screen is listening, and speech is recognised on the phone.
+  The Data safety form can say no audio or files are collected; the text of notes and briefs is sent to
+  OpenAI to write and price briefs (kept up to 30 days for abuse checks, per the backend's provider line),
+  and submitted briefs are stored until the project closes.
 
 ## How to run it tomorrow
 

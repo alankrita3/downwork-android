@@ -320,6 +320,10 @@ private fun StatusLine(state: DocumentViewModel.State, nav: NavController) {
             style = DwType.secondary, color = Ink.cobalt,
             modifier = Modifier.clickable { nav.navigate(Routes.status(project.id)) },
         )
+        project?.contentDeletedAt != null && draft != null -> Text(
+            "${StatusCopy.rowLine(project)}. DownWork deleted its copy; this one is kept only on this phone.",
+            style = DwType.secondary, color = Ink.graphite,
+        )
         project != null && project.submission?.submittedAt != null -> Text(
             "Submitted on ${Time.shortDate(project.submission.submittedAt)}, locked",
             style = DwType.secondary, color = Ink.graphite,

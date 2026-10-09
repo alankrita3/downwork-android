@@ -61,12 +61,15 @@ Kotlin, Jetpack Compose, Material 3, single activity, hand-wired dependencies.
 
 ```
 com.raviga.downwork
-├── data/api        Retrofit interface + DTOs for api-contract.md v0.3, errors, job polling
+├── data/api        Retrofit interface + DTOs for api-contract.md v0.6, errors, job polling
 ├── data/demo       In-process demo backend (DemoApi) and its heuristic brief writer
+├── data/drafts     Drafts on the phone: sealed JSON files under a Keystore AES-GCM key
+├── data/files      On-device document reading (PDFBox, ML Kit OCR, Word/RTF/text) and export
 ├── data/local      EncryptedSharedPreferences session, DataStore prefs, JSON cache
-├── data/repo       Session, Project, Credits repositories (state + cache + API)
+├── data/repo       Session, Draft (local-first), AI (stateless), Project (submitted), Credits
+├── data/screening  On-device check for keys, passwords, cards, Aadhaar and PAN
 ├── data/billing    RevenueCat over Google Play Billing
-├── data/audio      SpeechRecognizer dictation; MediaRecorder fallback
+├── data/audio      On-device SpeechRecognizer dictation (Android 12+, never the cloud)
 ├── push            FCM service, token registration, notifications
 ├── di              AppContainer (one per process)
 └── ui              theme, components, nav, one package per screen
@@ -74,10 +77,15 @@ com.raviga.downwork
 
 - **Identity**: no sign-in. A stable `installId` registers the device; the token lives in
   EncryptedSharedPreferences; a recovery key moves projects to another phone.
-- **Source of truth**: the backend. Repositories cache the last known state on disk so the app
-  opens instantly and reads work offline; every write goes through the API.
-- **Voice**: live dictation through the platform SpeechRecognizer drives the ink line and the
-  on-screen transcript. Devices without it record an AAC file that the backend transcribes.
+- **Local-first** (founder's rule, contract v0.6): recordings and files never leave the phone, and
+  drafts (notes, every version of the brief, the quote) live only on it. To write or price a brief,
+  its text goes to the stateless `/ai/*` and `/quotes` jobs, which keep nothing. Submit
+  (`POST /projects`) is the first time content reaches the server, which deletes it when the project
+  closes; the phone keeps its own copy.
+- **Submitted projects**: the backend is the source of truth; repositories cache the last known
+  state on disk so the app opens instantly and reads work offline.
+- **Voice**: live dictation through the on-device SpeechRecognizer drives the ink line and the
+  on-screen transcript. Phones without an offline model are offered typing or upload instead.
 - **Design**: mirrored from `DownWork iOS/docs/DESIGN.md`; Android notes in `docs/DESIGN.md`.
 
 ## Licences

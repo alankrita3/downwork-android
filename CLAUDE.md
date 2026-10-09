@@ -14,7 +14,10 @@ the iOS app (folder "DownWork iOS") and the backend (folder "DownWork Backend").
 
 ## Sources of truth
 
-- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.3 at the time of writing).
+- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.6, local-first, at the time of writing).
+  Drafts never reach the server: they live in `data/drafts` (sealed on the phone) and go through
+  `DraftRepository`; only text goes to the stateless `/ai/*` and `/quotes` jobs; `POST /projects`
+  (submit) is the first time content is stored. Never add a path that uploads recordings or files.
   Wire shapes live in `data/api/Dtos.kt` and must track it exactly (camelCase keys,
   snake_case enums, `202 {job}` for job starts, bare `Job` from `GET /jobs/{id}`).
 - Design: `DownWork iOS/docs/DESIGN.md` ("Wet ink, dry ink"). Tokens in `ui/theme`,
