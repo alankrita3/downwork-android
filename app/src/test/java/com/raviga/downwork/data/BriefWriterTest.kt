@@ -35,10 +35,12 @@ class BriefWriterTest {
         val draft = BriefWriter.write(listOf(salon))
         val doc = Document(version = 1, title = draft.title, sections = draft.sections)
         val q = BriefWriter.quote(doc, DemoApi.demoConfig())
-        // Contract v0.7 pricing (x0.38, at least 5) and the founder's pace: days = ceil(credits / 3).
+        // Contract v0.7 pricing (x0.38, at least 5); v0.7.1 timelines come from the bracket.
         assertTrue(q.credits >= 5)
-        assertEquals((q.credits + 2) / 3, q.workingDays)
         assertTrue(q.bracketId != null)
+        val bracket = DemoApi.demoConfig().quote.brackets.first { it.id == q.bracketId }
+        assertEquals(bracket.timeline, q.timeline)
+        assertEquals(q.timeline.maxWeeks * 5, q.workingDays)
         assertEquals(q.credits, q.breakdown.sumOf { it.second })
     }
 
@@ -59,5 +61,12 @@ class BriefWriterTest {
         assertTrue(nice.contains("rewards", ignoreCase = true))
         val screens = merged.first { it.id == SectionIds.SCREENS }.body
         assertTrue(screens.contains("Welcome"))
+    }
+
+    @Test
+    fun `enterprise runs 4 to at least 6 weeks, longer for very large projects`() {
+        val config = DemoApi.demoConfig()
+        assertEquals(null, config.quote.brackets.first { it.id == "enterprise" }.timeline)
+        assertEquals(com.raviga.downwork.data.api.QuoteTimeline(1, 2), config.quote.brackets.first { it.id == "standard" }.timeline)
     }
 }

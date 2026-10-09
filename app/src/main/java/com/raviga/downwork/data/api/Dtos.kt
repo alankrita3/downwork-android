@@ -152,6 +152,8 @@ data class Bracket(
     val minCredits: Int = 0,
     val maxCredits: Int? = null,
     val blurb: String = "",
+    /** v0.7.1: how long this size takes, in weeks; null for Enterprise (scaled by credits on the server). */
+    val timeline: QuoteTimeline? = null,
 )
 
 @Serializable

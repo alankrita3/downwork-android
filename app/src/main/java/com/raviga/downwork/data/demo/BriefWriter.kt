@@ -2,6 +2,7 @@ package com.raviga.downwork.data.demo
 
 import com.raviga.downwork.data.api.AppConfig
 import com.raviga.downwork.data.api.Document
+import com.raviga.downwork.data.api.QuoteTimeline
 import com.raviga.downwork.data.api.Section
 import com.raviga.downwork.data.api.SectionIds
 import java.util.Locale
@@ -21,6 +22,7 @@ object BriefWriter {
         val credits: Int,
         val bracketId: String?,
         val workingDays: Int,
+        val timeline: QuoteTimeline,
         val score: Int,
         val drivers: List<String>,
         val assumptions: List<String>,
@@ -280,8 +282,9 @@ object BriefWriter {
             credits,
         )
         val bracket = config.quote.brackets.firstOrNull { b -> credits >= b.minCredits && (b.maxCredits == null || credits <= b.maxCredits) }
-        // Founder, 2026-10-09: a typical project is ready in 1 to 2 weeks (same pace as the iOS mock).
-        val days = ceil(credits / 3.0).toInt().coerceAtLeast(1)
+        // Contract v0.7.1: the timeline is the bracket's; Enterprise is 4 to max(6, credits / 30) weeks.
+        val timeline = bracket?.timeline ?: QuoteTimeline(minWeeks = 4, maxWeeks = maxOf(6, ceil(credits / 30.0).toInt()))
+        val days = timeline.maxWeeks * 5
         val score = (personDays / 40.0 * 10).roundToInt().coerceIn(1, 10)
         val assumptions = buildList {
             add("Design follows DownWork's standard minimal interface unless you provide brand guidelines")
@@ -290,7 +293,7 @@ object BriefWriter {
             if (!doc.section(SectionIds.FEATURES_NICE)?.body.orEmpty().contains("languages", true)) add("One language (English) in the first release")
             add("Nice-to-have features are not included in this quote")
         }
-        return QuoteParts(credits, bracket?.id, days, score, drivers.take(4), assumptions, breakdown)
+        return QuoteParts(credits, bracket?.id, days, timeline, score, drivers.take(4), assumptions, breakdown)
     }
 
     private const val PRICE_SCALE = 0.38

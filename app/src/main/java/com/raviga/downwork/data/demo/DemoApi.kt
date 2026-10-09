@@ -448,7 +448,6 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 throw policyRefusal("This brief describes software we can't build under our Acceptable use policy.")
             }
             val parts = BriefWriter.quote(doc, config)
-            val maxWeeks = ceil(parts.workingDays / 5.0).toInt().coerceAtLeast(1)
             val hash = hashOf(body.document)
             val quote = Quote(
                 id = "qt_" + UUID.randomUUID().toString().take(8),
@@ -458,7 +457,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 inr = parts.credits * config.credits.creditValueInr,
                 bracketId = parts.bracketId,
                 estimatedWorkingDays = parts.workingDays,
-                timeline = QuoteTimeline(minWeeks = ceil(maxWeeks * 0.5).toInt().coerceAtLeast(1), maxWeeks = maxWeeks),
+                timeline = parts.timeline,
                 complexity = Complexity(parts.score, parts.drivers),
                 breakdown = parts.breakdown.map { BreakdownItem(it.first, it.second) },
                 assumptions = parts.assumptions,
@@ -748,11 +747,11 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
             ),
             quote = QuoteConfig(
                 brackets = listOf(
-                    Bracket("micro", "Micro", 5, 11, "One job, one screen or a simple site"),
-                    Bracket("starter", "Starter", 12, 22, "A focused app with a handful of screens"),
-                    Bracket("standard", "Standard", 23, 59, "A full product with accounts, payments or integrations"),
-                    Bracket("pro", "Pro", 60, 150, "Multiple platforms, complex data, admin tooling"),
-                    Bracket("enterprise", "Enterprise", 151, null, "Quoted as a custom engagement"),
+                    Bracket("micro", "Micro", 5, 11, "One job, one screen or a simple site", QuoteTimeline(1, 1)),
+                    Bracket("starter", "Starter", 12, 22, "A focused app with a handful of screens", QuoteTimeline(1, 1)),
+                    Bracket("standard", "Standard", 23, 59, "A full product with accounts, payments or integrations", QuoteTimeline(1, 2)),
+                    Bracket("pro", "Pro", 60, 150, "Multiple platforms, complex data, admin tooling", QuoteTimeline(2, 4)),
+                    Bracket("enterprise", "Enterprise", 151, null, "Quoted as a custom engagement", null),
                 ),
                 validDays = 14,
                 timelineNote = "Most projects are delivered well ahead of this estimate.",

@@ -14,7 +14,7 @@ the iOS app (folder "DownWork iOS") and the backend (folder "DownWork Backend").
 
 ## Sources of truth
 
-- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.7, local-first, prices in US dollars,
+- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.7.1, local-first, prices in US dollars,
   English-only speech, at the time of writing).
   Drafts never reach the server: they live in `data/drafts` (sealed on the phone) and go through
   `DraftRepository`; only text goes to the stateless `/ai/*` and `/quotes` jobs; `POST /projects`
