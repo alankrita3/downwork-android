@@ -25,7 +25,7 @@ Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper`
 | Picture | Where |
 |---|---|
 | Welcome | `WelcomeScreen` page 1, full bleed under the status bar, 46% of the screen (240 to 440 dp) so the four promises fit above the button |
-| Speak + Type + Upload, Quote, Building, Delivered | Welcome pages 2 to 5 ("Step N of 4"), 34% of the screen (200 to 320 dp); the three thumbnails sit in a row |
+| Speak + Type + Upload, Quote, Delivered | Welcome pages 2 to 4 ("Step N of 3"), 34% of the screen (200 to 320 dp); the three thumbnails sit in a row. Building is on the status screen only |
 | HomeEmpty | empty `HomeScreen`, 220 dp |
 | Speak / Type / Upload | chooser tiles (`DescribeChoices`), 84 dp thumbnails |
 | Writing | reading a document, writing the brief (Capture and Document), pricing (Quote): 180 to 220 dp spot |
@@ -96,16 +96,16 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 
 ## Copy that lives in the app
 
-- Welcome (five swipeable pages, `HorizontalPager`; page dots: current an 18x6 teal pill, others 6x6
+- Welcome (four swipeable pages, `HorizontalPager`; page dots: current an 18x6 teal pill, others 6x6
   ruleStrong; "Get started" and "By <company>" pinned on every page): page 1 "Say what you want built." /
   "Describe it in your own words: say it, type it, or upload a document. We write the brief, quote it and
   build it." / chips "Working project" (check), "Fast delivery" (bolt), "You approve the quote" (marigold
   dot), "Code handed to you" (teal dot), two per row (no privacy chip: it's only true until submit). Pages
-  2 to 5, "Step N of 4" in teal: "Describe it your way" / "Say it, type it, or upload a document you
+  2 to 4, "Step N of 3" in teal: "Describe it your way" / "Say it, type it, or upload a document you
   already have. We turn it into a clear brief you can edit."; "See the price first" / "You get a quote and
-  a timeline before anything starts. Nothing is charged until you submit."; "We build it" / "Our team
-  builds a working project and keeps you posted here at every step."; "It's yours" / "You get the code, a
-  handover guide and simple steps to make it live."
+  a timeline before anything starts. Nothing is charged until you submit."; "It's yours" / "You get the
+  code, a handover guide and simple steps to make it live."
+- Founder rule: no copy about who builds the project (team, AI, agents or robots) unless she approves it.
 - Capture hint: "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
 - Empty home: "What should we build?" / "Describe what you want built: say it, type it, or upload a
   document you already have. We turn it into a brief you can edit, quote it, and build it."

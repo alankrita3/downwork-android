@@ -63,13 +63,13 @@ private val steps = listOf(
         listOf(Picture.Speak, Picture.Type, Picture.Upload),
     ),
     Step("See the price first", "You get a quote and a timeline before anything starts. Nothing is charged until you submit.", listOf(Picture.Quote)),
-    Step("We build it", "Our team builds a working project and keeps you posted here at every step.", listOf(Picture.Building)),
     Step("It's yours", "You get the code, a handover guide and simple steps to make it live.", listOf(Picture.Delivered)),
 )
 
 /**
- * First launch. Page one says what DownWork does; four more show the flow with its pictures (describe,
- * see the price, we build it, it's yours), as on iOS. "Get started" is on every page, so nobody has to swipe.
+ * First launch. Page one says what DownWork does; three more show the flow with its pictures (describe,
+ * see the price, it's yours), as on iOS. "Get started" is on every page, so nobody has to swipe.
+ * No copy about who builds the project (team, AI or anything else) unless the founder approves it.
  */
 @Composable
 fun WelcomeScreen(nav: NavController) {
