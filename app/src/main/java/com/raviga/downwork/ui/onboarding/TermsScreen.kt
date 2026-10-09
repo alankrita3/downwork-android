@@ -1,6 +1,13 @@
 package com.raviga.downwork.ui.onboarding
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextAlign
+import com.raviga.downwork.ui.components.InlineAction
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.SpotIllustration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,7 +57,7 @@ fun TermsScreen(nav: NavController) {
         bottomBar = {
             BottomBar {
                 InlineNotice(error, Modifier.padding(bottom = 8.dp))
-                PrimaryButton("Agree and continue", loading = busy, onClick = {
+                PrimaryButton(if (busy) "One moment" else "Agree and continue", enabled = !busy, onClick = {
                     busy = true; error = null
                     scope.launch {
                         runCatching { container.session.acceptLegal() }
@@ -62,42 +69,75 @@ fun TermsScreen(nav: NavController) {
                         busy = false
                     }
                 })
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "You agree to the terms of service and the privacy policy.",
+                    style = DwType.caption, color = Ink.ash,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
-            Spacer(Modifier.height(40.dp))
-            Text(if (updating) "We've updated our terms" else "Before you start", style = DwType.title, color = Ink.ink)
             if (updating) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(24.dp))
+                Text("We've updated our terms", style = DwType.title, color = Ink.ink)
+                Spacer(Modifier.height(10.dp))
                 Text(
                     "Our Terms and Privacy policy changed, including what DownWork can and can't build. Read them, then agree to carry on.",
                     style = DwType.body, color = Ink.graphite,
                 )
+                Spacer(Modifier.height(24.dp))
+            } else {
+                Spacer(Modifier.height(8.dp))
+                SpotIllustration(Picture.Privacy, size = 170.dp, modifier = Modifier.offset(x = (-22).dp))
+                Spacer(Modifier.height(20.dp))
+                Text("Before you start", style = DwType.title, color = Ink.ink)
+                Spacer(Modifier.height(20.dp))
             }
-            Spacer(Modifier.height(20.dp))
-            Text("What we don't keep", style = DwType.heading, color = Ink.ink)
-            Spacer(Modifier.height(8.dp))
-            Text(
+            Block(
+                "What we collect",
+                "The brief you submit for us to build, and our comments on it. A random id for this phone. Your credit purchases and balance. A GitHub username and, if you add one, an AWS account id, so we can hand your project over.",
+            )
+            Block("Why", "To write your brief, quote it, build it and deliver it. We do not sell data or show ads.")
+            Block(
+                "What we don't keep",
                 "Recordings and files never leave your phone. Drafts are stored only on your phone. To write or price a brief, its text is sent to our AI, used once, and not stored by us. When you submit, we keep the brief to review and build it, and delete it when you accept the delivery.",
-                style = DwType.body, color = Ink.ink,
             )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "There is no account. Submitted projects and credits move to a new phone with a recovery key; drafts stay on this one. You can download or delete everything from Settings.",
-                style = DwType.body, color = Ink.ink,
+            Block(
+                "What we won't build",
+                "Anything made to harm, deceive or track people, or that breaks the law. Every description is checked automatically, passwords and ID numbers are removed, and a refused project is never charged.",
             )
-            Spacer(Modifier.height(24.dp))
-            Text("Privacy policy", style = DwType.body, color = Ink.cobalt, modifier = Modifier.clickable { openLink(context, legal.privacyUrl) }.padding(vertical = 6.dp))
-            Text("Terms of service", style = DwType.body, color = Ink.cobalt, modifier = Modifier.clickable { openLink(context, legal.termsUrl) }.padding(vertical = 6.dp))
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Grievances: ${legal.grievance.officerName.ifBlank { "Grievance officer" }}, ${legal.grievance.email.ifBlank { "see Settings" }}. We reply within ${legal.grievance.responseDays} days.",
-                style = DwType.caption, color = Ink.graphite,
+            Block(
+                "Your rights",
+                "You can download or delete everything from Settings at any time, withdraw consent, and raise a grievance. Under India's DPDP Act you may also complain to the Data Protection Board after using our grievance process.",
             )
-            Spacer(Modifier.height(8.dp))
-            Text("${legal.companyName}. Terms ${legal.termsVersion}, privacy ${legal.privacyVersion}.", style = DwType.caption, color = Ink.graphite)
+            Block(
+                "Grievance officer",
+                "${grievanceName(legal.grievance.officerName, legal.companyName)}. Write to ${legal.grievance.email}. We reply within ${legal.grievance.responseDays} days.",
+            )
+            Row(Modifier.padding(top = 4.dp)) {
+                InlineAction("Privacy policy", onClick = { openLink(context, legal.privacyUrl) })
+                Spacer(Modifier.width(12.dp))
+                InlineAction("Terms of service", onClick = { openLink(context, legal.termsUrl) })
+            }
             Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+/** A heading and its paragraph in the notice. */
+@Composable
+private fun Block(title: String, body: String) {
+    Text(title, style = DwType.bodyMedium, color = Ink.ink)
+    Spacer(Modifier.height(6.dp))
+    Text(body, style = DwType.secondary, color = Ink.graphite)
+    Spacer(Modifier.height(20.dp))
+}
+
+/** Config values still marked for the founder read as the role, never as "[FOUNDER]" (same rule as iOS). */
+private fun grievanceName(name: String, company: String): String = when {
+    name.isBlank() || name.contains("[FOUNDER]") || name.lowercase().contains("placeholder") -> "The Grievance Officer, $company"
+    name.contains(company) -> name
+    else -> "$name, $company"
 }

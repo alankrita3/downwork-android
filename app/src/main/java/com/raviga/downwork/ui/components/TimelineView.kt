@@ -26,7 +26,7 @@ import com.raviga.downwork.util.Time
 
 /**
  * Submitted, Reviewed, Approved, Building, Delivered, Accepted as a vertical
- * sequence: done nodes in ink, the current one in cobalt, the rest outlined.
+ * sequence: done nodes in ink, the current one a teal ring, the rest outlined.
  */
 @Composable
 fun TimelineView(
@@ -40,8 +40,7 @@ fun TimelineView(
             val last = index == milestones.lastIndex
             Row(Modifier.fillMaxWidth().height(IntrinsicHeightMin)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
-                    Spacer(Modifier.height(6.dp))
-                    Node(m.state)
+                    Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) { Node(m.state) }
                     if (!last) {
                         Box(
                             Modifier
@@ -55,10 +54,10 @@ fun TimelineView(
                 Column(Modifier.weight(1f).padding(bottom = if (last) 0.dp else 20.dp)) {
                     Text(
                         m.label,
-                        style = DwType.body,
+                        style = if (m.state == "current") DwType.bodyMedium else DwType.body,
                         color = when (m.state) {
                             "upcoming" -> Ink.ash
-                            "current" -> Ink.cobalt
+                            "current" -> Ink.teal
                             else -> Ink.ink
                         },
                     )
@@ -71,7 +70,7 @@ fun TimelineView(
                     }
                     if (line != null) {
                         Spacer(Modifier.height(2.dp))
-                        Text(line, style = DwType.caption, color = if (m.state == "current") Ink.cobalt else Ink.graphite)
+                        Text(line, style = DwType.caption, color = if (m.state == "current") Ink.teal else Ink.graphite)
                     }
                 }
             }
@@ -86,9 +85,9 @@ private val IntrinsicHeightMin = androidx.compose.foundation.layout.IntrinsicSiz
 @Composable
 private fun Node(state: String) {
     when (state) {
-        "done" -> Box(Modifier.size(10.dp).clip(CircleShape).background(Ink.ink))
-        "current" -> Box(Modifier.size(10.dp).clip(CircleShape).background(Ink.cobalt))
-        else -> Box(Modifier.size(10.dp).clip(CircleShape).border(1.dp, Ink.rule, CircleShape).background(Ink.paper))
+        "done" -> Box(Modifier.size(Dw.statusMark).clip(CircleShape).background(Ink.ink))
+        "current" -> Box(Modifier.size(12.dp).clip(CircleShape).background(Ink.paper).border(1.5.dp, Ink.teal, CircleShape))
+        else -> Box(Modifier.size(Dw.statusMark).clip(CircleShape).background(Ink.paper).border(1.dp, Ink.ruleStrong, CircleShape))
     }
 }
 
@@ -98,7 +97,14 @@ fun NumberedSteps(steps: List<String>, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
         steps.forEachIndexed { i, step ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text("${i + 1}", style = DwType.body, color = Ink.graphite, modifier = Modifier.width(24.dp))
+                Text(
+                    "${i + 1}",
+                    style = DwType.secondaryMedium,
+                    color = Ink.graphite,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.width(16.dp).padding(top = 2.dp),
+                )
+                Spacer(Modifier.width(12.dp))
                 Text(step, style = DwType.body, color = Ink.ink, modifier = Modifier.weight(1f))
             }
         }

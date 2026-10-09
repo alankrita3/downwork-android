@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 
-/** Serif section heading as the document's voice. */
+/** Bricolage section heading as the document's voice. */
 @Composable
 fun SectionHeading(text: String, modifier: Modifier = Modifier, color: Color = Ink.ink) {
     Text(text, style = DwType.heading, color = color, modifier = modifier)

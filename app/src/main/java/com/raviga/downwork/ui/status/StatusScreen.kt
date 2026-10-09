@@ -48,6 +48,11 @@ import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 import com.raviga.downwork.util.Time
+import com.raviga.downwork.ui.components.Chip
+import com.raviga.downwork.ui.components.ChipTone
+import com.raviga.downwork.ui.components.Illustration
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.util.Money
 
 @Composable
 fun StatusScreen(nav: NavController, projectId: String) {
@@ -90,19 +95,21 @@ fun StatusScreen(nav: NavController, projectId: String) {
             project == null && state.error != null -> ErrorState(state.error!!, Modifier.padding(padding), onRetry = { vm.refresh() })
             project == null -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
             else -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
-                Spacer(Modifier.height(8.dp))
+                // A picture of the stage the project is at, then where it stands.
+                headerPicture(project.status)?.let { picture ->
+                    Spacer(Modifier.height(4.dp))
+                    Illustration(picture, height = 200.dp, radius = Dw.tileRadius)
+                    Spacer(Modifier.height(20.dp))
+                } ?: Spacer(Modifier.height(8.dp))
                 Text(StatusCopy.projectTitle(project, container.drafts.get(project.id)?.displayTitle), style = DwType.title, color = Ink.ink)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusMark(project.status)
-                    Spacer(Modifier.width(8.dp))
-                    Text(StatusCopy.detailTitle(project.status), style = DwType.body, color = Ink.ink)
+                    val done = project.status == ProjectStatus.DELIVERED || project.status == ProjectStatus.ACCEPTED
+                    Chip(StatusCopy.detailTitle(project.status), tone = if (done) ChipTone.Teal else ChipTone.Plain, dot = StatusCopy.markColor(project.status))
+                    Spacer(Modifier.width(12.dp))
+                    Text(headerCaption(project), style = DwType.caption, color = Ink.graphite, maxLines = 2)
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(StatusCopy.rowLine(project), style = DwType.secondary, color = Ink.graphite)
-                if (project.ref.isNotBlank()) {
-                    Text("Reference ${project.ref}", style = DwType.caption, color = Ink.graphite)
-                }
+
                 if (project.status == ProjectStatus.REJECTED) {
                     project.history.lastOrNull { it.status == ProjectStatus.REJECTED }?.note?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(12.dp))
@@ -119,6 +126,8 @@ fun StatusScreen(nav: NavController, projectId: String) {
                 // Once closed, the server deleted the brief and its comments: no empty section, just say so.
                 if (deletedAt == null) {
                     Spacer(Modifier.height(Dw.sectionGap))
+                    Hairline()
+                    Spacer(Modifier.height(20.dp))
                     SectionHeading("From the team")
                     Spacer(Modifier.height(12.dp))
                     if (state.comments.isEmpty()) {
@@ -157,7 +166,7 @@ fun StatusScreen(nav: NavController, projectId: String) {
     if (confirmCancel) {
         AlertDialog(
             onDismissRequest = { confirmCancel = false },
-            containerColor = Ink.paper,
+            containerColor = Ink.surface,
             title = { Text("Cancel this project?", style = DwType.heading, color = Ink.ink) },
             text = { Text("Your ${project?.submission?.creditsCharged ?: 0} credits come back to your balance and the brief unlocks as a draft.", style = DwType.body, color = Ink.graphite) },
             confirmButton = { TextButton(onClick = { confirmCancel = false; vm.cancel() }) { Text("Cancel project", style = DwType.button, color = Ink.brick) } },
@@ -179,3 +188,17 @@ fun CommentBlock(comment: Comment) {
         Hairline()
     }
 }
+
+/** Building while the team works on it, the parcel once it's delivered; no picture for the rest. */
+private fun headerPicture(status: String): Picture? = when (status) {
+    ProjectStatus.SUBMITTED, ProjectStatus.CHANGES_REQUESTED, ProjectStatus.APPROVED, ProjectStatus.REVISION_REQUESTED -> Picture.Building
+    ProjectStatus.DELIVERED, ProjectStatus.ACCEPTED -> Picture.Delivered
+    else -> null
+}
+
+/** "DW-4XEAZQ, submitted 9 Oct, 32 credits" */
+private fun headerCaption(project: com.raviga.downwork.data.api.Project): String = listOfNotNull(
+    project.ref.takeIf { it.isNotBlank() },
+    project.submission?.submittedAt?.let { "submitted ${Time.shortDate(it)}" },
+    project.submission?.creditsCharged?.takeIf { it > 0 }?.let { Money.credits(it) },
+).joinToString(", ")

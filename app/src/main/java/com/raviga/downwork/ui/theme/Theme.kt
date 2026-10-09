@@ -12,27 +12,27 @@ private val Scheme = lightColorScheme(
     onPrimary = Ink.paper,
     primaryContainer = Ink.wash,
     onPrimaryContainer = Ink.ink,
-    secondary = Ink.cobalt,
-    onSecondary = Ink.paper,
-    secondaryContainer = Ink.wash,
-    onSecondaryContainer = Ink.ink,
-    tertiary = Ink.cobalt,
-    onTertiary = Ink.paper,
+    secondary = Ink.teal,
+    onSecondary = Ink.surface,
+    secondaryContainer = Ink.tealWash,
+    onSecondaryContainer = Ink.tealInk,
+    tertiary = Ink.teal,
+    onTertiary = Ink.surface,
     background = Ink.paper,
     onBackground = Ink.ink,
     surface = Ink.paper,
     onSurface = Ink.ink,
     surfaceVariant = Ink.wash,
     onSurfaceVariant = Ink.graphite,
-    surfaceContainer = Ink.paper,
+    surfaceContainer = Ink.surface,
     surfaceContainerLow = Ink.paper,
-    surfaceContainerLowest = Ink.paper,
-    surfaceContainerHigh = Ink.wash,
+    surfaceContainerLowest = Ink.surface,
+    surfaceContainerHigh = Ink.surface,
     surfaceContainerHighest = Ink.wash,
     surfaceTint = Ink.paper,
     inverseSurface = Ink.ink,
     inverseOnSurface = Ink.paper,
-    outline = Ink.rule,
+    outline = Ink.ruleStrong,
     outlineVariant = Ink.rule,
     error = Ink.brick,
     onError = Ink.paper,
@@ -41,12 +41,12 @@ private val Scheme = lightColorScheme(
     scrim = Ink.ink,
 )
 
-/** Light only: the brief fixes a white background. */
+/** Light only: warm white paper (docs/DESIGN.md, "Workshop"). */
 @Composable
 fun DownWorkTheme(content: @Composable () -> Unit) {
     val selection = TextSelectionColors(
-        handleColor = Ink.cobalt,
-        backgroundColor = Ink.cobalt.copy(alpha = 0.18f),
+        handleColor = Ink.teal,
+        backgroundColor = Ink.teal.copy(alpha = 0.18f),
     )
     MaterialTheme(
         colorScheme = Scheme,

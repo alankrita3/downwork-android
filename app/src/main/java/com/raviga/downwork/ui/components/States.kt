@@ -30,31 +30,36 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 
-/** A thin cobalt rule. Determinate when [progress] is given, otherwise a sweep. */
+/** A rounded 4dp teal bar on a wash track. Determinate when [progress] is given, otherwise a sweep. */
 @Composable
 fun ProgressRule(modifier: Modifier = Modifier, progress: Float? = null) {
     val target = progress?.coerceIn(0f, 1f)
-    val animated by animateFloatAsState(targetValue = target ?: 0f, animationSpec = tween(400), label = "progress")
+    val animated by animateFloatAsState(targetValue = target ?: 0f, animationSpec = tween(300), label = "progress")
     val sweep = rememberInfiniteTransition(label = "sweep").animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart),
         label = "sweepValue",
     )
-    Canvas(modifier.fillMaxWidth().height(2.dp)) {
+    Canvas(modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))) {
         val w = size.width
-        val y = size.height / 2
-        drawLine(Ink.rule, Offset(0f, y), Offset(w, y), strokeWidth = size.height, cap = StrokeCap.Round)
+        val h = size.height
+        val y = h / 2
+        drawLine(Ink.wash, Offset(0f, y), Offset(w, y), strokeWidth = h)
         if (target != null) {
-            drawLine(Ink.cobalt, Offset(0f, y), Offset(w * animated, y), strokeWidth = size.height, cap = StrokeCap.Round)
+            if (animated > 0f) drawLine(Ink.teal, Offset(h / 2, y), Offset((w * animated).coerceAtLeast(h / 2), y), strokeWidth = h, cap = StrokeCap.Round)
         } else {
-            val span = w * 0.28f
+            val span = w * 0.3f
             val start = -span + (w + span) * sweep.value
-            drawLine(Ink.cobalt, Offset(start.coerceAtLeast(0f), y), Offset((start + span).coerceAtMost(w), y), strokeWidth = size.height, cap = StrokeCap.Round)
+            drawLine(Ink.teal, Offset(start, y), Offset(start + span, y), strokeWidth = h, cap = StrokeCap.Round)
         }
     }
 }
@@ -95,29 +100,25 @@ fun InlineNotice(text: String?, modifier: Modifier = Modifier, color: Color = In
     Text(text, style = DwType.secondary, color = color, modifier = modifier.fillMaxWidth().padding(top = 8.dp))
 }
 
-/** Two-way switch for Capture: "Speak" / "Type". Wash track, paper thumb, no shadow. */
+/** Capture's ways of describing: plain text tabs, the selected one in ink with a 2dp underline. */
 @Composable
-fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Dw.fieldRadius))
-            .background(Ink.wash)
-            .padding(3.dp),
-    ) {
+fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Row(modifier.fillMaxWidth()) {
         options.forEachIndexed { i, label ->
             val on = i == selected
-            Box(
+            Column(
                 Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (on) Ink.paper else Color.Transparent)
-                    .clickable { onSelect(i) }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
+                    .width(IntrinsicSize.Max)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(enabled = enabled, role = Role.Tab) { onSelect(i) }
+                    .semantics { this.selected = on }
+                    .padding(vertical = 6.dp),
             ) {
-                Text(label, style = DwType.button, color = if (on) Ink.ink else Ink.graphite)
+                Text(label, style = DwType.bodyMedium, color = if (on) Ink.ink else Ink.ash)
+                Spacer(Modifier.height(6.dp))
+                Box(Modifier.fillMaxWidth().height(2.dp).background(if (on) Ink.ink else Color.Transparent))
             }
+            if (i < options.lastIndex) Spacer(Modifier.width(24.dp))
         }
     }
 }

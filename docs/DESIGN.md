@@ -1,21 +1,38 @@
 # DownWork Android — design notes
 
-The design system is owned by iOS: `DownWork iOS/docs/DESIGN.md` ("Wet ink, dry ink").
-This file records only how Android mirrors it and where the platform differs.
+The design system is owned by iOS: `DownWork iOS/docs/DESIGN.md` ("Workshop", direction A, approved by the
+founder on 2026-10-09; it replaced "Wet ink, dry ink"). This file records only how Android mirrors it and
+where the platform differs. The fonts and pictures are the same files iOS ships.
 
 ## Tokens → code
 
 | Design | Android |
 |---|---|
-| colours (paper, ink, graphite, ash, rule, wash, cobalt, moss, amber, brick) | `ui/theme/Color.kt` (`Ink` object); also mapped onto the Material 3 colour scheme in `Theme.kt` so stock components pick them up |
-| type styles (display 44/48, title 34/38, heading 26/30, dictation 30/38, body 17/25, secondary 15/21, button 17/22 medium, caption 13/18) | `ui/theme/Type.kt` (`DwType`), all in sp so font scaling works; `includeFontPadding = false` |
-| Instrument Serif | bundled `res/font/instrument_serif_{regular,italic}.ttf` (OFL) |
-| System sans | Roboto via `FontFamily.Default` |
-| 8pt grid, 20pt gutter, 32pt section gap, 12pt row padding | `ui/theme/Dimens.kt` (`Dw`), in dp |
-| buttons 52 tall, radius 12; fields wash radius 10 padding 14; mic 72 circle; status mark 8 | `Dw.buttonHeight`, `Dw.buttonRadius`, `Dw.fieldRadius`, `Dw.fieldPadding`, `Dw.micSize`, `Dw.statusMark` |
-| hairline 1px | `Dw.hairline = 1.dp` (Compose draws it at device pixels; on xxhdpi it is 3 px, which reads as a hairline) |
+| colours (paper `#FBFAF7`, surface, ink, graphite, ash, rule, ruleStrong, wash, teal, tealWash/tealInk, marigold, marigoldWash/marigoldInk, moss, amber, brick) | `ui/theme/Color.kt` (`Ink` object); also mapped onto the Material 3 scheme in `Theme.kt`. `res/values/colors.xml` carries paper, ink and teal for the splash and launcher |
+| type scale (hero 38, display 48, title 32, heading 21, dictation 26, body 17/25, bodyMedium 17 semibold, secondary 15/21, button 17 semibold, caption 13/18, chip 13 bold) with the doc's tracking | `ui/theme/Type.kt` (`DwType`), all in sp so font scaling works; `includeFontPadding = false` |
+| Bricolage Grotesque (Bold opsz 48, SemiBold opsz 24, Medium opsz 32) and Figtree (400/500/600/700, Italic 400) | `res/font/bricolage_*.ttf`, `res/font/figtree_*.ttf`: the static instances iOS made, OFL; licence in `assets/licenses/OFL.txt`, shown under Settings > Fonts |
+| 8pt grid, 20pt gutter (24 on Welcome), 12pt between tiles | `ui/theme/Dimens.kt` (`Dw`), in dp |
+| buttons 56 tall radius 18; fields surface radius 16 with a rule border (teal 1.5 when focused); tiles radius 24; pictures radius 20 (24 for headers, 18 for thumbnails, 32 bottom corners on Welcome); mic 72; status mark 8 | `Dw.*`; `PrimaryButton`/`SecondaryButton`/`TertiaryButton`, `DwTextField`, `BoxedEditor`, `Modifier.tile()` |
+| chips (plain / teal / marigold, dot or icon) | `Chip`, `ChipRow` (FlowRow) in `ui/components/Workshop.kt` |
+| pictures | `res/drawable-nodpi/illo_*.webp` (the iOS `Illo*.imageset` files through `cwebp -q 88 -alpha_q 100 -m 6`, about 0.8 MB for all eleven); `Picture` enum, `Illustration` (cropped around a focus point), `HeroIllustration` (full bleed, Welcome), `SpotIllustration` (the transparent ones) |
+| hairline 1px | `Dw.hairline = 1.dp` |
 
 Light appearance only: no `values-night`, `enableEdgeToEdge` with light system bars, no dynamic colour.
+Sheets and dialogs sit on `surface`; the describe chooser sheet stays on `paper` so its white tiles read.
+
+## Pictures → screens
+
+| Picture | Where |
+|---|---|
+| Welcome | `WelcomeScreen`, full bleed under the status bar, 46% of the screen (240 to 440 dp) so the four promises fit above the button |
+| HomeEmpty | empty `HomeScreen`, 220 dp |
+| Speak / Type / Upload | chooser tiles (`DescribeChoices`), 84 dp thumbnails |
+| Writing | reading a document, writing the brief (Capture and Document), pricing (Quote): 180 to 220 dp spot |
+| Quote | `QuoteScreen` header, 190 dp |
+| Building | `StatusScreen` header while submitted, changes requested, approved or in revision |
+| Delivered | `StatusScreen` header once delivered or accepted, `DeliveryScreen`, `GoLiveScreen` |
+| Credits | beside the balance on `CreditsScreen`, 124 dp |
+| Privacy | Terms ("Before you start" only), Privacy and data |
 
 ## Screens → routes
 
@@ -23,33 +40,38 @@ Light appearance only: no `values-night`, `enableEdgeToEdge` with light system b
 |---|---|---|
 | Welcome | `welcome` | `WelcomeScreen` |
 | Terms | `terms` | `TermsScreen` |
-| Home | `home` | `HomeScreen` |
-| Describe chooser (Speak / Type / Upload a document) | bottom sheet on Home and Document | `DescribeChooserSheet` |
-| Capture, Transcript / "Here's what we read", Choices, Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (phases in one screen so the dictation state survives the transition; tabs Speak, Type, Upload) |
+| Home | `home` | `HomeScreen` (project tiles, credits pill with a marigold dot) |
+| Describe chooser (Speak / Type / Upload a document) | bottom sheet on Home and Document | `DescribeChooserSheet` / `DescribeChoices` |
+| Capture, Transcript / "Here's what we read", Choices, Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (phases in one screen so the dictation state survives the transition; text tabs Speak, Type, Upload; accent picker on Speak) |
 | Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` (the server's L1 list: `DownWork Backend/src/downwork/screening/secrets.py`) |
 | AIConsent | `ai_consent` | `AiConsentScreen` (returns `ai_consent_granted` through the back stack entry) |
-| Document | `document/{projectId}?reveal=` | `DocumentScreen` |
+| Document | `document/{projectId}?reveal=` | `DocumentScreen` (square plus beside "Get a quote" for Add more) |
 | SectionEditor, Regenerate | `section/{projectId}/{sectionId}` + bottom sheet | `SectionEditorScreen`, `RegenerateSheet` |
 | Versions | `versions/{projectId}`, `version/{projectId}/{v}` | `VersionsScreen`, `VersionPreviewScreen` |
-| Quote + DeliveryTargets inline | `quote/{projectId}` | `QuoteScreen` |
+| Quote + DeliveryTargets inline | `quote/{projectId}` | `QuoteScreen` (breakdown tile, marigold bracket chip) |
 | ConnectAWS | `connect_aws` | `ConnectAwsScreen` |
 | ProjectStatus | `status/{projectId}` | `StatusScreen` |
-| Delivery, RevisionRequest | `delivery/{projectId}` + bottom sheet | `DeliveryScreen` |
+| Delivery, RevisionRequest | `delivery/{projectId}` + bottom sheet | `DeliveryScreen` (repository, handover guide and Make it live tiles) |
+| GoLive ("Make it live", 14b) | `golive/{projectId}` | `GoLiveScreen`, logic in `ui/status/GoLiveLogic.kt` (a port of iOS `GoLiveLogic`, same tests) |
 | Credits | `credits` | `CreditsScreen` |
-| Settings and children | `settings`, `settings/targets`, `settings/privacy`, `settings/recovery`, `settings/notifications` | `SettingsScreen`, `SubScreens.kt` |
+| Settings and children | `settings`, `settings/targets`, `settings/privacy`, `settings/recovery`, `settings/notifications`, `settings/fonts` | `SettingsScreen`, `SubScreens.kt` |
 
 Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui/status/StatusCopy.kt`.
 
 ## Platform differences
 
+- **Top bars.** iOS shows floating round buttons over the content (its navigation bar); Android keeps
+  a plain 56 dp bar with a back arrow and teal text actions. Screen titles sit in the content in
+  Bricolage, as on iOS.
 - **Dictation.** Android has no in-process equivalent of `SFSpeechRecognizer` that can run
   alongside a recorder: the platform `SpeechRecognizer` lives in another process and takes the
   microphone. Capture uses only the on-device recogniser (`createOnDeviceSpeechRecognizer`,
-  Android 12+), restarted across pauses; on Android 13+ it checks the language model is installed
-  and asks the phone to download it if not. It never falls back to cloud recognition and keeps no
-  audio. Phones without it get "Type instead" / "Upload a document". The ink line follows the
-  recognizer's RMS callback (about 10 Hz, interpolated).
-- **Reduce motion.** Read from `ANIMATOR_DURATION_SCALE == 0`: the ink line becomes a flat cobalt
+  Android 12+), restarted across pauses; on Android 13+ it checks the English model is installed
+  and asks the phone to download it if not. Speech is English only (contract v0.7): the accent
+  picker offers US, UK, India and Australia, defaulting from the phone's region as on iOS. It never
+  falls back to cloud recognition and keeps no audio. Phones without it get "Type instead" /
+  "Upload a document". The ink line follows the recognizer's RMS callback (about 10 Hz, interpolated).
+- **Reduce motion.** Read from `ANIMATOR_DURATION_SCALE == 0`: the ink line becomes a flat teal
   line that pulses opacity; the document reveal still runs but is a single fade per section.
 - **Identity.** No Keychain: the token lives in EncryptedSharedPreferences and is excluded from
   backup, so "Move to another phone" (recovery key) matters more than on iOS. A 401 triggers a
@@ -60,27 +82,35 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   (PDFBox for text PDFs, ML Kit's on-device OCR for scans, parsers for Word/RTF/text/Markdown) and
   deleted. Nothing is uploaded. Choosing "Upload a document" in the chooser opens the picker
   straight away.
-- **Links.** Privacy, terms, the repo and the CloudFormation quick-create URL open in a Chrome
-  Custom Tab with a paper toolbar.
+- **Links.** Privacy, terms, the repo, the handover guide and the CloudFormation quick-create URL open
+  in a Chrome Custom Tab.
+- **Prices.** In US dollars (contract v0.7): "about $X" is `quote.usd`, else credits x
+  `config.credits.creditValueUsd`; pack tiles show Google Play's own price string, and
+  `priceHintUsd` only until it loads. `util/Money.kt` formats them.
 - **Notifications.** Asked once on Home (Android 13+). Push data with a `projectId` refreshes that
   project in the foreground; in the background FCM shows the notification and its tap carries
   `projectId` as an intent extra, which opens the project's own screen (brief, status or delivery).
-- **Fonts.** Instrument Serif is bundled rather than fetched, so the first frame has the right face
-  with no Play Services dependency.
+- **Fonts and pictures** are bundled rather than fetched, so the first frame has the right face and
+  picture with no Play Services dependency.
 
 ## Copy that lives in the app
 
+- Welcome: "Say what you want built." / "Describe it in your own words: say it, type it, or upload a
+  document. We write the brief, quote it and build it." / chips "Working app, delivered fast" (bolt),
+  "Stays on your phone" (lock), "You approve the quote" (marigold dot), "Code handed to you" (teal dot),
+  two per row / "Get started" / "By <company>".
 - Capture hint: "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
-- Empty home: "No projects yet. Tap the microphone and describe what you want built."
+- Empty home: "What should we build?" / "Describe what you want built: say it, type it, or upload a
+  document you already have. We turn it into a brief you can edit, quote it, and build it."
 - Chooser: "Describe your project" ("Whichever is easiest. You can mix them, and edit everything
-  after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); rows Speak ("Talk it through in English or
-  Hindi. We write it up."), Type ("Write or paste a description."), Upload a document ("A PDF, Word or
-  text file you already have."); footer "Recordings are deleted after N days and documents as soon as
-  they're read." replaced in v0.6 by "Your recordings and files never leave your phone. Drafts are
-  kept only on this phone."
+  after.") / "Add to <title>" ("Add more detail, whichever way is easiest."); tiles Speak ("Talk it
+  through in English. We write it up."), Type ("Write or paste a description."), Upload a document ("A
+  PDF, Word or text file you already have."); teal note "Your recordings and files never leave your
+  phone. Drafts are kept only on this phone."
 - Upload tab: "Upload a requirements document" / "A PDF, Word, RTF or text file up to 10 MB. We read
-  the text, you check it, and the brief is written from it." / "Only the text is kept. The file is
-  deleted as soon as it's read, and is never shared with the team." / "Choose a file".
+  the text, you check it, and the brief is written from it." / note "It's read on your phone. The file
+  never leaves it, and only the text you check is kept, in your draft." / "Choose a file". Reading:
+  "Reading <file>" / "Read on your phone. Long documents take a little longer."
 - Review titles and hints: voice "Here's what we heard" / "Tap to fix anything that was misheard.";
   typed "Here's your description" / "Tap to edit before we write the brief."; upload "Here's what we
   read" / "From <file>, N pages" / the server's `notice` / "Tap to fix anything before we write the brief."
@@ -90,9 +120,20 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   sensitive-data check, saves the document as its own note, then shows the three choices with
   "Saved <file> to your draft." or "Saved N notes to your draft." and "Write the brief now").
   Back from a document review picks another file.
+- Writing: "Writing your brief" with the job's step line in teal; pricing: "Pricing your brief".
 - Sensitive data: "This looks like it includes <up to two kinds, then 'and other secrets'>." /
   "We never need passwords, keys or ID numbers to build your project, and it's safer not to share
   them." Buttons "Remove them", "Keep as is", "Edit".
+- Quote: "<N> credits" with "about $X", the bracket chip and blurb, "Ready in A to B weeks after
+  approval", "Sized for …" (names and platforms keep their capitals), the breakdown tile (ink, teal,
+  marigold, ash, ruleStrong, moss), "Assumes", "What happens next" (iOS wording, step 4 mentions the
+  handover guide and making it live), "Where to deliver", footer "Your brief locks and the team is
+  emailed a summary." Resubmit: "You already paid N credits. This adds M credits." / "This returns M
+  credits to your balance." / "No change."
+- Delivery: "Your code is ready." / repository tile / "Handover guide" ("What we built and how to run
+  it": `delivery.handoverUrl`, else `<repo>/blob/HEAD/HANDOVER.md`) / "Make it live" ("Steps to put it
+  in front of customers") / Repository, Backend, From the team. Transfer and AWS lines are
+  `GoLiveLogic.transferLine` / `awsLine`, worded as iOS.
 - Refused project: "We can't take this project on", the server's reason, "Nothing has been charged.
   If you think this is a mistake, write to <supportEmail>." (the appeal is dropped when the server's
   reason already carries it). Policy refusals elsewhere show the server's message as is: the backend

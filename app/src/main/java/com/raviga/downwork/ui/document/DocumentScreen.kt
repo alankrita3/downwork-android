@@ -58,6 +58,13 @@ import com.raviga.downwork.ui.components.ScreenScaffold
 import com.raviga.downwork.ui.components.SecondaryButton
 import com.raviga.downwork.ui.components.SectionHeading
 import com.raviga.downwork.ui.components.SectionHint
+import com.raviga.downwork.ui.components.SpotIllustration
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.Hairline
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.BorderStroke
 import com.raviga.downwork.ui.capture.DescribeChooserSheet
 import com.raviga.downwork.ui.nav.Routes
 import com.raviga.downwork.ui.status.StatusCopy
@@ -122,14 +129,19 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                             if (state.status == ProjectStatus.CHANGES_REQUESTED) "Get a new quote" else "Get a quote",
                             enabled = state.busyMessage == null,
                             onClick = { nav.navigate(Routes.quote(draftId)) },
-                            modifier = Modifier.weight(1.4f),
+                            modifier = Modifier.weight(1f),
                         )
                         Spacer(Modifier.width(12.dp))
-                        SecondaryButton(
-                            "Add more", onClick = { chooser = true },
+                        // "Add more": a square plus beside the primary action.
+                        OutlinedIconButton(
+                            onClick = { chooser = true },
                             enabled = state.busyMessage == null,
-                            modifier = Modifier.weight(1f), icon = Icons.Outlined.Add,
-                        )
+                            modifier = Modifier.size(Dw.buttonHeight),
+                            shape = RoundedCornerShape(Dw.buttonRadius),
+                            border = BorderStroke(1.5.dp, Ink.ruleStrong),
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = "Add more", tint = Ink.ink)
+                        }
                     }
                     editable -> PrimaryButton("Write the brief", enabled = state.busyMessage == null && draft?.inputs?.isNotEmpty() == true, onClick = { vm.generate() })
                     project != null -> PrimaryButton("View status", onClick = { nav.navigate(Routes.forProject(project.id, project.status)) })
@@ -142,12 +154,28 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
             draft == null && project == null && state.loading -> Column(Modifier.fillMaxSize().padding(padding)) { ProgressRule(Modifier.padding(horizontal = Dw.gutter)) }
             draft == null && project == null -> ErrorState("That draft is no longer on this phone.", Modifier.padding(padding), onRetry = { nav.popBackStack() })
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+                if (document == null && state.busyMessage != null) {
+                    // Writing the first brief: the writing picture while it happens.
+                    item {
+                        Column(Modifier.padding(horizontal = Dw.gutter)) {
+                            Spacer(Modifier.height(16.dp))
+                            SpotIllustration(Picture.Writing, size = 180.dp, modifier = Modifier.offset(x = (-14).dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("Writing your brief", style = DwType.title, color = Ink.ink)
+                            Spacer(Modifier.height(8.dp))
+                            Text(state.busyMessage!!, style = DwType.secondary, color = Ink.teal)
+                            Spacer(Modifier.height(16.dp))
+                            ProgressRule(progress = state.busyProgress?.takeIf { it > 0f })
+                        }
+                    }
+                    return@LazyColumn
+                }
                 item {
                     Column(Modifier.padding(horizontal = Dw.gutter)) {
                         if (state.busyMessage != null) {
                             ProgressRule(progress = state.busyProgress?.takeIf { it > 0f })
                             Spacer(Modifier.height(8.dp))
-                            Text(state.busyMessage!!, style = DwType.caption, color = Ink.cobalt)
+                            Text(state.busyMessage!!, style = DwType.caption, color = Ink.teal)
                             Spacer(Modifier.height(16.dp))
                         } else {
                             Spacer(Modifier.height(8.dp))
@@ -160,7 +188,7 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                         Spacer(Modifier.height(8.dp))
                         StatusLine(state, nav)
                         state.notices.forEach { InlineNotice(it, color = Ink.graphite) }
-                        Spacer(Modifier.height(Dw.sectionGap))
+                        Spacer(Modifier.height(24.dp))
                         if (rejected) {
                             RefusedBlock(state.refusalReason, state.supportEmail)
                             Spacer(Modifier.height(Dw.sectionGap))
@@ -201,17 +229,22 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                             visible = index < revealed,
                             enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { it / 12 },
                         ) {
-                            Column(Modifier.padding(horizontal = Dw.gutter).padding(bottom = Dw.sectionGap)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                            Column(Modifier.padding(horizontal = Dw.gutter)) {
+                                if (index > 0) {
+                                    Hairline()
+                                    Spacer(Modifier.height(20.dp))
+                                }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     SectionHeading(section.heading.ifBlank { SectionIds.headings[section.id] ?: section.id }, Modifier.weight(1f))
                                     if (editable) {
                                         InlineAction("Edit", enabled = state.busyMessage == null, onClick = { nav.navigate(Routes.section(draftId, section.id)) })
                                         InlineAction("Regenerate", enabled = state.busyMessage == null, onClick = { vm.openRegenerate(section.id) })
                                     }
                                 }
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(10.dp))
                                 if (section.body.isBlank()) SectionHint(section.hint ?: "Nothing here yet.")
                                 else BodyText(section.body)
+                                Spacer(Modifier.height(20.dp))
                             }
                         }
                     }
@@ -251,7 +284,7 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            containerColor = Ink.paper,
+            containerColor = Ink.surface,
             title = { Text("Delete this draft?", style = DwType.heading, color = Ink.ink) },
             text = { Text("The description, the brief and all its versions are deleted. This cannot be undone.", style = DwType.body, color = Ink.graphite) },
             confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteDraft() }) { Text("Delete", style = DwType.button, color = Ink.brick) } },
@@ -295,7 +328,7 @@ private fun EditableTitle(title: String, editable: Boolean, onSave: (String) -> 
             value = text,
             onValueChange = { text = it },
             textStyle = DwType.title.copy(color = Ink.ink),
-            cursorBrush = SolidColor(Ink.cobalt),
+            cursorBrush = SolidColor(Ink.teal),
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { editing = false; if (text.trim() != title) onSave(text) }),
@@ -319,7 +352,7 @@ private fun StatusLine(state: DocumentViewModel.State, nav: NavController) {
     when {
         project?.status == ProjectStatus.CHANGES_REQUESTED -> Text(
             "The team left comments. Read them, edit, then get a new quote.",
-            style = DwType.secondary, color = Ink.cobalt,
+            style = DwType.secondary, color = Ink.teal,
             modifier = Modifier.clickable { nav.navigate(Routes.status(project.id)) },
         )
         project?.contentDeletedAt != null && draft != null -> Text(
@@ -337,3 +370,4 @@ private fun StatusLine(state: DocumentViewModel.State, nav: NavController) {
         )
     }
 }
+

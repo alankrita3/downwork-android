@@ -10,7 +10,7 @@ are the same credential used by more than one repo.
 | # | Item | Where it goes | Status |
 |---|---|---|---|
 | 1 | **Play Console app** for `com.raviga.downwork` (Raviga Apps Private Limited), name "DownWork" | Play Console → Create app | not created |
-| 2 | **Four consumable in-app products**: `credits_10`, `credits_25`, `credits_50`, `credits_100` with INR prices (₹9,999 / ₹24,999 / ₹49,999 / ₹99,999 proposed; the backend's `/config` carries the credit amounts) (shared with the App Store) | Play Console → Monetise → In-app products | not created |
+| 2 | **Four consumable in-app products**: `credits_10`, `credits_25`, `credits_50`, `credits_100` with USD base prices ($99.99 / $249.99 / $499.99 / $999.99, from `/config` `priceHintUsd`; let Play convert to local currencies; the backend's `/config` carries the credit amounts) (shared with the App Store) | Play Console → Monetise → In-app products | not created |
 | 3 | **RevenueCat** project with the Android app, the Google public SDK key `goog_…`, Play service-account credentials, and the webhook URL + shared secret from the backend (shared) | `secrets.properties` → `REVENUECAT_API_KEY`; backend SSM | missing |
 | 4 | **Firebase project** with the Android app `com.raviga.downwork` (and `com.raviga.downwork.debug` for debug builds) added; download `google-services.json`; give the backend the service-account JSON for FCM (shared) | `app/google-services.json` (gitignored) | missing |
 | 5 | **Upload key** for Play App Signing: a keystore plus `keystore.properties` with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` | `keystore.properties` (gitignored) | missing; release builds are unsigned until then |
@@ -59,12 +59,14 @@ PDF (ML Kit's model comes from Play services on first use), store purchases (no 
   recovery key. Voice needs Android 12+ with an offline speech model (most phones sold in India since 2022);
   older phones type or upload instead, because the only alternative would send audio to Google's cloud.
 - Reading PDFs on the phone adds about 6.5 MB to the app (PDFBox); scans use ML Kit through Play services.
-- 1 credit = ₹1,000; brackets micro/starter/standard/pro/enterprise; two included revision rounds; quotes
+- 1 credit = $10 (contract v0.7; a typical clinic booking app quotes about 30 credits); brackets micro/starter/standard/pro/enterprise; two included revision rounds; quotes
   valid 14 days; auto-accept 14 days after delivery; the server deletes a brief when its project closes. All of these live in the backend
   `/config`; the app renders whatever it is sent.
 - Notifications permission is asked once on the home screen (Android 13+). Change in `HomeScreen.kt`.
-- Light appearance only (white background per your brief). Instrument Serif (open licence) for the
-  document voice, Roboto for everything else.
+- Light appearance only. The "Workshop" design you approved on iOS (Bricolage Grotesque and Figtree, warm
+  white, teal and marigold, clay pictures), built from the same font and picture files. The launcher
+  icon and splash keep the old mark in the new colours; a new icon is yours to commission.
+- Speech is English only (US, UK, India or Australia accent, from the phone's region), as you asked.
 - `minSdk 26` (Android 8.0, covers ~97% of Indian Android devices); `targetSdk 36` as Play requires.
 
 ## Risks to know before store review

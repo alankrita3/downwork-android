@@ -35,13 +35,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.indication
 import androidx.compose.material3.ripple
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 
 private val ButtonShape = RoundedCornerShape(Dw.buttonRadius)
 
-/** Ink fill, paper text. The one action that moves the flow forward. */
+/** Ink fill, paper text, a little smaller while pressed. The one action that moves the flow forward. */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -51,19 +56,23 @@ fun PrimaryButton(
     loading: Boolean = false,
     icon: ImageVector? = null,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.985f else 1f, tween(120), label = "press")
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
-        modifier = modifier.fillMaxWidth().height(Dw.buttonHeight),
+        modifier = modifier.fillMaxWidth().height(Dw.buttonHeight).graphicsLayer { scaleX = scale; scaleY = scale },
         shape = ButtonShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Ink.ink,
             contentColor = Ink.paper,
-            disabledContainerColor = Ink.ash,
+            disabledContainerColor = Ink.ash.copy(alpha = 0.55f),
             disabledContentColor = Ink.paper,
         ),
         elevation = null,
         contentPadding = PaddingValues(horizontal = 20.dp),
+        interactionSource = interaction,
     ) {
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Ink.paper, strokeWidth = 2.dp)
@@ -77,7 +86,7 @@ fun PrimaryButton(
     }
 }
 
-/** 1px rule outline, ink text. */
+/** 1.5dp strong rule outline, ink text. */
 @Composable
 fun SecondaryButton(
     text: String,
@@ -91,7 +100,7 @@ fun SecondaryButton(
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(Dw.buttonHeight),
         shape = ButtonShape,
-        border = BorderStroke(Dw.hairline, if (enabled) Ink.rule else Ink.wash),
+        border = BorderStroke(1.5.dp, if (enabled) Ink.ruleStrong else Ink.rule),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Ink.ink, disabledContentColor = Ink.ash),
         contentPadding = PaddingValues(horizontal = 20.dp),
     ) {
@@ -103,14 +112,14 @@ fun SecondaryButton(
     }
 }
 
-/** Cobalt text, no chrome. */
+/** Teal text, no chrome. */
 @Composable
 fun TertiaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    color: Color = Ink.cobalt,
+    color: Color = Ink.teal,
     fullWidth: Boolean = true,
 ) {
     TextButton(
@@ -120,7 +129,7 @@ fun TertiaryButton(
         shape = ButtonShape,
         colors = ButtonDefaults.textButtonColors(contentColor = color, disabledContentColor = Ink.ash),
     ) {
-        Text(text, style = DwType.button)
+        Text(text, style = DwType.secondaryMedium)
     }
 }
 
@@ -129,12 +138,12 @@ fun TertiaryButton(
 fun DestructiveButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
     TertiaryButton(text, onClick, modifier, enabled, color = Ink.brick)
 
-/** Small cobalt text action used inline next to headings ("Edit", "Regenerate"). */
+/** Small teal text action used inline next to headings ("Edit", "Regenerate"). */
 @Composable
-fun InlineAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, color: Color = Ink.cobalt) {
+fun InlineAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, color: Color = Ink.teal) {
     Text(
         text = text,
-        style = DwType.secondary,
+        style = DwType.secondaryMedium,
         color = if (enabled) color else Ink.ash,
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))

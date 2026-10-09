@@ -47,6 +47,29 @@ import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 import com.raviga.downwork.util.Time
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.outlined.ArrowOutward
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.raviga.downwork.ui.components.Illustration
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.tile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,67 +114,77 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
             else -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
                 val delivery = project.delivery
                 Column(Modifier.padding(horizontal = Dw.gutter)) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Illustration(Picture.Delivered, height = 200.dp, radius = Dw.tileRadius)
+                    Spacer(Modifier.height(20.dp))
                     Text(
                         when (project.status) {
                             ProjectStatus.DELIVERED -> "Your code is ready."
-                            ProjectStatus.ACCEPTED -> "Accepted."
+                            ProjectStatus.ACCEPTED -> "Your code."
                             ProjectStatus.REVISION_REQUESTED -> "Revision in progress."
                             else -> StatusCopy.detailTitle(project.status)
                         },
-                        style = DwType.display, color = Ink.ink,
+                        style = DwType.title, color = Ink.ink,
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(StatusCopy.projectTitle(project, container.drafts.get(project.id)?.displayTitle), style = DwType.body, color = Ink.graphite)
+                    Spacer(Modifier.height(6.dp))
+                    Text(StatusCopy.projectTitle(project, container.drafts.get(project.id)?.displayTitle), style = DwType.secondary, color = Ink.graphite)
                     if (project.status == ProjectStatus.ACCEPTED) {
                         Text("Accepted on ${Time.shortDate(project.history.lastOrNull { it.status == ProjectStatus.ACCEPTED }?.at ?: project.updatedAt)}", style = DwType.secondary, color = Ink.moss)
                     }
-                    Spacer(Modifier.height(24.dp))
-                }
-
-                if (delivery?.repoUrl != null) {
-                    DwRow(
-                        title = delivery.repoUrl.removePrefix("https://"),
-                        subtitle = "Open the repository",
-                        onClick = { openLink(context, delivery.repoUrl) },
-                    )
-                }
-
-                Column(Modifier.padding(horizontal = Dw.gutter)) {
                     Spacer(Modifier.height(16.dp))
+
+                    if (delivery?.repoUrl != null) {
+                        LinkTile(
+                            title = repoName(delivery.repoUrl),
+                            detail = delivery.repoUrl.removePrefix("https://"),
+                            icon = Icons.Outlined.Code,
+                            dark = true,
+                            trailing = Icons.Outlined.ArrowOutward,
+                            description = "Open ${repoName(delivery.repoUrl)} on GitHub",
+                            onClick = { openLink(context, delivery.repoUrl) },
+                        )
+                    }
+                    delivery?.handover?.let { guide ->
+                        Spacer(Modifier.height(10.dp))
+                        LinkTile(
+                            title = "Handover guide",
+                            detail = "What we built and how to run it",
+                            icon = Icons.AutoMirrored.Outlined.Article,
+                            onClick = { openLink(context, guide) },
+                        )
+                    }
+                    if (delivery != null) {
+                        Spacer(Modifier.height(10.dp))
+                        LinkTile(
+                            title = "Make it live",
+                            detail = "Steps to put it in front of customers",
+                            icon = Icons.Outlined.Flag,
+                            onClick = { nav.navigate(Routes.goLive(projectId)) },
+                        )
+                    }
+
                     val transfer = delivery?.transfer
                     val github = project.submission?.githubUsername?.ifBlank { null } ?: container.session.me.value?.deliveryTargets?.githubUsername?.ifBlank { null }
-                    val transferLine = when (transfer?.status) {
-                        "awaiting_target" -> "We need your GitHub username to transfer the repository."
-                        // Pending is queued, not sent; its error (if any) is internal and never shown.
-                        "pending" -> "We're sending the repository to ${github?.let { "@$it" } ?: "you"}. GitHub will email you to accept it."
-                        "initiated" -> "Transfer sent to ${github?.let { "@$it" } ?: "you"}. Accept it from the email GitHub sent you."
-                        "accepted" -> "Transfer accepted. The repository is yours."
-                        "failed" -> "The transfer failed" + (transfer.error?.let { ": $it" } ?: ".") + " Check your GitHub username and we will retry."
-                        else -> null
-                    }
+                    // Pending is queued, not sent; its error (if any) is internal and never shown.
+                    val transferLine = transfer?.let { GoLiveLogic.transferLine(if (it.status == "pending") it.copy(error = null) else it, github) }
                     if (transferLine != null) {
-                        Text(transferLine, style = DwType.body, color = if (transfer?.status == "failed") Ink.brick else Ink.ink)
-                        if (transfer?.status == "awaiting_target" || transfer?.status == "failed") {
-                            Spacer(Modifier.height(8.dp))
-                            InlineAction("Set GitHub username", onClick = { nav.navigate(Routes.DELIVERY_TARGETS) })
+                        Labelled("Repository") {
+                            Text(transferLine, style = DwType.body, color = if (transfer?.status == "failed") Ink.brick else Ink.ink)
+                            if (transfer?.status == "awaiting_target" || transfer?.status == "failed") {
+                                InlineAction("Set GitHub username", onClick = { nav.navigate(Routes.DELIVERY_TARGETS) }, modifier = Modifier.offset(x = (-8).dp))
+                            }
+                        }
+                    }
+                    delivery?.aws?.let { aws ->
+                        Labelled("Backend") {
+                            Text(GoLiveLogic.awsLine(aws), style = DwType.body, color = if (aws.status == "deployed") Ink.moss else Ink.ink)
+                            if (aws.status == "not_requested") {
+                                InlineAction("Connect AWS", onClick = { nav.navigate(Routes.CONNECT_AWS) }, modifier = Modifier.offset(x = (-8).dp))
+                            }
                         }
                     }
                     delivery?.note?.takeIf { it.isNotBlank() }?.let {
-                        Spacer(Modifier.height(16.dp))
-                        BodyText(it)
-                    }
-                    delivery?.aws?.let { aws ->
-                        if (aws.status != "not_requested") {
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                when (aws.status) {
-                                    "deployed" -> aws.note.takeIf { it.isNotBlank() } ?: "Deployed to your AWS account."
-                                    else -> "AWS deployment is in progress."
-                                },
-                                style = DwType.body, color = if (aws.status == "deployed") Ink.moss else Ink.ink,
-                            )
-                        }
+                        Labelled("From the team") { BodyText(it) }
                     }
                     if (project.status == ProjectStatus.DELIVERED && delivery?.acceptBy != null) {
                         Spacer(Modifier.height(16.dp))
@@ -189,7 +222,7 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
         ModalBottomSheet(
             onDismissRequest = { if (!state.busy) revisionSheet = false },
             sheetState = sheet,
-            containerColor = Ink.paper,
+            containerColor = Ink.surface,
             dragHandle = null,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         ) {
@@ -213,3 +246,47 @@ fun DeliveryScreen(nav: NavController, projectId: String) {
         }
     }
 }
+
+/** A caption label over its content, as on iOS ("Repository", "Backend", "From the team"). */
+@Composable
+private fun Labelled(label: String, content: @Composable () -> Unit) {
+    Spacer(Modifier.height(16.dp))
+    Text(label, style = DwType.caption, color = Ink.graphite)
+    Spacer(Modifier.height(4.dp))
+    content()
+}
+
+/** The repository or a document, as a tile: an icon square, a name and one line. */
+@Composable
+private fun LinkTile(
+    title: String,
+    detail: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    dark: Boolean = false,
+    trailing: ImageVector = Icons.Outlined.ChevronRight,
+    description: String = title,
+) {
+    Row(
+        Modifier.tile(padding = 14.dp, onClick = onClick).semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (dark) Ink.ink else Ink.tealWash),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = if (dark) Ink.surface else Ink.tealInk, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = DwType.bodyMedium, color = Ink.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            Text(detail, style = DwType.caption, color = Ink.graphite, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(4.dp))
+        Icon(trailing, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** "downwork-builds/tiffin-app" from the repository URL. */
+private fun repoName(url: String): String = url.trimEnd('/').split('/').takeLast(2).joinToString("/")

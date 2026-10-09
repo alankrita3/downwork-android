@@ -214,8 +214,9 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 p = p.copy(
                     delivery = Delivery(
                         repoUrl = "https://github.com/downwork-builds/$slug",
+                        handoverUrl = "https://github.com/downwork-builds/$slug/blob/HEAD/HANDOVER.md",
                         deliveredAt = now,
-                        note = "Repo transferred. " + if (hasAws) "Backend deployed to your AWS account in ap-south-1: one API Gateway, three Lambda functions, one DynamoDB table and one S3 bucket. The README lists every resource." else "Backend deployment instructions are in the README.",
+                        note = "Repo transferred. " + if (hasAws) "Backend deployed to your AWS account: one API Gateway, three Lambda functions, one DynamoDB table and one S3 bucket. The README lists every resource." else "Backend deployment instructions are in the README.",
                         transfer = Transfer(status = if (hasGithub) "initiated" else "awaiting_target", initiatedAt = if (hasGithub) now else null),
                         aws = AwsDelivery(status = if (hasAws) "deployed" else "not_requested", note = if (hasAws) "Deployed with DownWorkDeployRole" else ""),
                         acceptBy = Instant.now().plusSeconds(config.acceptance.autoAcceptDays * 86_400L).toString(),
@@ -453,6 +454,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 id = "qt_" + UUID.randomUUID().toString().take(8),
                 status = "current",
                 credits = parts.credits,
+                usd = parts.credits * config.credits.creditValueUsd,
                 inr = parts.credits * config.credits.creditValueInr,
                 bracketId = parts.bracketId,
                 estimatedWorkingDays = parts.workingDays,
@@ -735,21 +737,22 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         fun demoConfig() = AppConfig(
             minAppVersion = mapOf("ios" to "1.0.0", "android" to "1.0.0"),
             credits = CreditsConfig(
-                creditValueInr = 1000,
+                creditValueUsd = 10.0,
+                creditValueInr = 850,
                 packs = listOf(
-                    CreditPack("credits_10", 10, 0, 9_999, "10 credits"),
-                    CreditPack("credits_25", 25, 2, 24_999, "25 + 2 credits"),
-                    CreditPack("credits_50", 50, 6, 49_999, "50 + 6 credits"),
-                    CreditPack("credits_100", 100, 15, 99_999, "100 + 15 credits"),
+                    CreditPack("credits_10", 10, 0, priceHintUsd = 99.99, priceHintInr = 8_499, label = "10 credits"),
+                    CreditPack("credits_25", 25, 2, priceHintUsd = 249.99, priceHintInr = 21_249, label = "25 + 2 credits"),
+                    CreditPack("credits_50", 50, 6, priceHintUsd = 499.99, priceHintInr = 42_499, label = "50 + 6 credits"),
+                    CreditPack("credits_100", 100, 15, priceHintUsd = 999.99, priceHintInr = 84_999, label = "100 + 15 credits"),
                 ),
             ),
             quote = QuoteConfig(
                 brackets = listOf(
-                    Bracket("micro", "Micro", 15, 30, "One job, one screen or a simple site"),
-                    Bracket("starter", "Starter", 31, 60, "A focused app with a handful of screens"),
-                    Bracket("standard", "Standard", 61, 150, "A full product with accounts, payments or integrations"),
-                    Bracket("pro", "Pro", 151, 400, "Multiple platforms, complex data, admin tooling"),
-                    Bracket("enterprise", "Enterprise", 401, null, "Quoted as a custom engagement"),
+                    Bracket("micro", "Micro", 5, 11, "One job, one screen or a simple site"),
+                    Bracket("starter", "Starter", 12, 22, "A focused app with a handful of screens"),
+                    Bracket("standard", "Standard", 23, 59, "A full product with accounts, payments or integrations"),
+                    Bracket("pro", "Pro", 60, 150, "Multiple platforms, complex data, admin tooling"),
+                    Bracket("enterprise", "Enterprise", 151, null, "Quoted as a custom engagement"),
                 ),
                 validDays = 14,
                 timelineNote = "Most projects are delivered well ahead of this estimate.",

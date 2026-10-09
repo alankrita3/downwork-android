@@ -39,7 +39,7 @@ fun RegenerateSheet(
     ModalBottomSheet(
         onDismissRequest = { if (busyMessage == null) onDismiss() },
         sheetState = sheet,
-        containerColor = Ink.paper,
+        containerColor = Ink.surface,
         dragHandle = null,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
     ) {

@@ -21,6 +21,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.raviga.downwork.data.audio.DictationEngine
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,11 +59,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.raviga.downwork.ui.LocalAppContainer
 import com.raviga.downwork.ui.components.BottomBar
+import androidx.compose.foundation.layout.offset
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.SpotIllustration
+import com.raviga.downwork.ui.components.PrivacyNote
+import com.raviga.downwork.ui.components.BoxedEditor
 import com.raviga.downwork.ui.components.DwTopBar
 import com.raviga.downwork.ui.components.InkLine
 import com.raviga.downwork.ui.components.InlineNotice
 import com.raviga.downwork.ui.components.MicButton
-import com.raviga.downwork.ui.components.PlainEditor
 import com.raviga.downwork.ui.components.PrimaryButton
 import com.raviga.downwork.ui.components.ProgressRule
 import com.raviga.downwork.ui.components.ScreenScaffold
@@ -160,6 +175,34 @@ private fun captureBack(vm: CaptureViewModel, state: CaptureViewModel.State): ((
     else -> null
 }
 
+/** "English (US) ▾": which English accent the phone listens for. */
+@Composable
+private fun AccentPicker(accent: DictationEngine.Accent, enabled: Boolean, onPick: (DictationEngine.Accent) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(enabled = enabled) { open = true }
+                .semantics { contentDescription = "Speaking in ${accent.label}" }
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(accent.label, style = DwType.caption, color = if (enabled) Ink.graphite else Ink.ash)
+            Spacer(Modifier.width(2.dp))
+            Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Ink.surface) {
+            DictationEngine.Accent.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label, style = DwType.body, color = if (option == accent) Ink.teal else Ink.ink) },
+                    onClick = { open = false; onPick(option) },
+                )
+            }
+        }
+    }
+}
+
 /** Layer-0 warning: secrets or ID numbers found in what is about to be saved. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,7 +211,7 @@ private fun SensitiveSheet(title: String, onRemove: () -> Unit, onKeep: () -> Un
     ModalBottomSheet(
         onDismissRequest = onEdit,
         sheetState = sheet,
-        containerColor = Ink.paper,
+        containerColor = Ink.surface,
         dragHandle = null,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
     ) {
@@ -204,7 +247,7 @@ private fun CapturePhase(
             DwTopBar(
                 title = if (vm.isAppend) "Add more" else null,
                 onBack = captureBack(vm, state) ?: { if (state.listening) vm.stopListening(); nav.popBackStack(); Unit },
-                actions = { if (canFinish && !state.listening) com.raviga.downwork.ui.components.InlineAction("Done", onClick = { vm.finishCapture() }) },
+                actions = { if (canFinish && !state.listening && state.tab == CaptureViewModel.TAB_SPEAK) com.raviga.downwork.ui.components.InlineAction("Done", onClick = { vm.finishCapture() }) },
             )
         },
         bottomBar = {
@@ -215,24 +258,29 @@ private fun CapturePhase(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
-            // Continuing a note stays in its mode, so the tabs make way for what is happening.
-            if (state.continuing) {
-                Text(if (state.tab == CaptureViewModel.TAB_SPEAK) "Recording more" else "Adding more", style = DwType.body, color = Ink.ink)
-            } else {
-                Segmented(listOf("Speak", "Type", "Upload"), state.tab, onSelect = { vm.selectTab(it) })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Continuing a note stays in its mode, so the tabs make way for what is happening.
+                Box(Modifier.weight(1f)) {
+                    if (state.continuing) {
+                        Text(if (state.tab == CaptureViewModel.TAB_SPEAK) "Recording more" else "Adding more", style = DwType.bodyMedium, color = Ink.ink, modifier = Modifier.padding(vertical = 6.dp))
+                    } else {
+                        Segmented(listOf("Speak", "Type", "Upload"), state.tab, onSelect = { vm.selectTab(it) })
+                    }
+                }
+                if (state.tab == CaptureViewModel.TAB_SPEAK) AccentPicker(state.accent, enabled = !state.listening, onPick = { vm.selectAccent(it) })
             }
             Spacer(Modifier.height(24.dp))
             if (state.tab == CaptureViewModel.TAB_UPLOAD) {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                     Text("Upload a requirements document", style = DwType.heading, color = Ink.ink)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         "A PDF, Word, RTF or text file up to ${fileMaxBytes / 1_048_576} MB. We read the text, you check it, and the brief is written from it.",
-                        style = DwType.body,
+                        style = DwType.secondary,
                         color = Ink.graphite,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Text(FILE_NOTE, style = DwType.caption, color = Ink.graphite)
+                    Spacer(Modifier.height(16.dp))
+                    PrivacyNote(FILE_NOTE)
                     InlineNotice(state.error)
                 }
             } else if (state.tab == CaptureViewModel.TAB_SPEAK) {
@@ -241,14 +289,14 @@ private fun CapturePhase(
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), reverseScrolling = true)) {
                     if (speech is CaptureViewModel.Speech.Unavailable || speech is CaptureViewModel.Speech.NotYet) {
                         val message = (speech as? CaptureViewModel.Speech.Unavailable)?.message ?: (speech as CaptureViewModel.Speech.NotYet).message
-                        Text(message, style = DwType.dictation.copy(fontStyle = FontStyle.Italic), color = Ink.graphite)
+                        Text(message, style = DwType.dictationItalic, color = Ink.graphite)
                         Spacer(Modifier.height(16.dp))
                         if (!state.continuing) Row {
                             com.raviga.downwork.ui.components.InlineAction("Type instead", onClick = { vm.selectTab(CaptureViewModel.TAB_TYPE) })
                             com.raviga.downwork.ui.components.InlineAction("Upload a document", onClick = { vm.selectTab(CaptureViewModel.TAB_UPLOAD) })
                         }
                     } else if (!state.hasSpeech && !state.listening) {
-                        Text(HINT, style = DwType.dictation.copy(fontStyle = FontStyle.Italic), color = Ink.ash)
+                        Text(HINT, style = DwType.dictationItalic, color = Ink.ash)
                         Spacer(Modifier.height(12.dp))
                         Text("Your voice is turned into text on this phone. No recording is kept or sent.", style = DwType.caption, color = Ink.graphite)
                     } else {
@@ -263,7 +311,7 @@ private fun CapturePhase(
                 InkLine(level = state.level, active = state.listening)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
-                    Text(formatTime(state.elapsedSec), style = DwType.caption, color = if (state.listening) Ink.cobalt else Ink.graphite)
+                    Text(formatTime(state.elapsedSec), style = DwType.caption, color = if (state.listening) Ink.teal else Ink.graphite)
                 }
                 InlineNotice(state.error)
                 Spacer(Modifier.height(16.dp))
@@ -283,13 +331,14 @@ private fun CapturePhase(
                 }
                 Spacer(Modifier.height(16.dp))
             } else {
-                PlainEditor(
-                    value = state.typed,
-                    onValueChange = { vm.setTyped(it) },
-                    placeholder = HINT,
-                    minLines = 10,
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                )
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    BoxedEditor(
+                        value = state.typed,
+                        onValueChange = { vm.setTyped(it) },
+                        placeholder = HINT,
+                        minHeight = 240.dp,
+                    )
+                }
                 InlineNotice(state.error)
                 Spacer(Modifier.height(16.dp))
             }
@@ -302,26 +351,29 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
     val fromFile = state.tab == CaptureViewModel.TAB_UPLOAD
     val focus = remember { FocusRequester() }
     LaunchedEffect(state.focusEditor) { if (state.focusEditor > 0) runCatching { focus.requestFocus() } }
-    ScreenScaffold(
-        topBar = {
-            DwTopBar(
-                title = when (state.tab) {
-                    CaptureViewModel.TAB_UPLOAD -> "Here's what we read"
-                    CaptureViewModel.TAB_TYPE -> "Here's your description"
-                    else -> "Here's what we heard"
-                },
-                onBack = { if (!state.reading && !state.saving) vm.recordMore() },
+    if (state.reading) {
+        // Reading a document on the phone.
+        ScreenScaffold(topBar = { DwTopBar() }) { padding ->
+            Processing(
+                title = state.progressMessage ?: "Reading your document",
+                line = "Read on your phone. Long documents take a little longer.",
+                progress = state.progress,
+                modifier = Modifier.padding(padding),
             )
-        },
+        }
+        return
+    }
+    ScreenScaffold(
+        topBar = { DwTopBar(onBack = { if (!state.saving) vm.recordMore() }) },
         bottomBar = {
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 PrimaryButton(
                     if (vm.isAppend) "Looks right, add it to the brief" else "Looks right, write the brief",
-                    enabled = !state.reading && !state.saving && state.transcript.isNotBlank(),
+                    enabled = !state.saving && state.transcript.isNotBlank(),
                     onClick = { vm.writeBrief() },
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 // A document is its own note: "Add more" saves it, then any way adds the next part.
                 // Back from a document picks another file instead.
                 SecondaryButton(
@@ -330,46 +382,75 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                         CaptureViewModel.TAB_UPLOAD -> if (state.saving) "Saving" else "Add more"
                         else -> "Edit what I typed"
                     },
-                    enabled = !state.reading && !state.saving && (!fromFile || state.transcript.isNotBlank()),
+                    enabled = !state.saving && (!fromFile || state.transcript.isNotBlank()),
                     onClick = { if (fromFile) vm.addMore() else vm.recordMore() },
                 )
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
-            Spacer(Modifier.height(8.dp))
-            if (state.reading) {
-                ProgressRule()
-                Spacer(Modifier.height(12.dp))
-                Text(state.progressMessage ?: "Listening back", style = DwType.secondary, color = Ink.graphite)
-            } else {
-                val file = state.file
-                if (fromFile && file != null) {
-                    Text(fileSource(file), style = DwType.secondary, color = Ink.graphite)
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                when (state.tab) {
+                    CaptureViewModel.TAB_UPLOAD -> "Here's what we read"
+                    CaptureViewModel.TAB_TYPE -> "Here's your description"
+                    else -> "Here's what we heard"
+                },
+                style = DwType.title,
+                color = Ink.ink,
+            )
+            Spacer(Modifier.height(6.dp))
+            val file = state.file
+            if (fromFile && file != null) {
+                Text(fileSource(file), style = DwType.caption, color = Ink.graphite)
+                val notice = file.notice ?: if (file.truncated) "Only the first part fit. Add the rest as another note." else null
+                if (notice != null) {
                     Spacer(Modifier.height(4.dp))
-                    Text(FILE_NOTE, style = DwType.caption, color = Ink.graphite)
-                    val notice = file.notice ?: if (file.truncated) "Only the first part fit. Add the rest as another note." else null
-                    if (notice != null) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(notice, style = DwType.caption, color = Ink.amber)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Tap to fix anything before we write the brief.", style = DwType.secondary, color = Ink.graphite)
-                } else if (state.tab == CaptureViewModel.TAB_TYPE) {
-                    Text("Tap to edit before we write the brief.", style = DwType.secondary, color = Ink.graphite)
-                } else {
-                    Text("Tap to fix anything that was misheard.", style = DwType.secondary, color = Ink.graphite)
+                    Text(notice, style = DwType.secondary, color = Ink.amber)
                 }
-                Spacer(Modifier.height(16.dp))
-                PlainEditor(
-                    value = state.transcript,
-                    onValueChange = { vm.setTranscript(it) },
-                    placeholder = HINT,
-                    minLines = 8,
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).focusRequester(focus),
-                )
             }
+            Spacer(Modifier.height(14.dp))
+            BoxedEditor(
+                value = state.transcript,
+                onValueChange = { vm.setTranscript(it) },
+                placeholder = HINT,
+                modifier = Modifier.focusRequester(focus),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    fromFile -> "Tap to fix anything before we write the brief."
+                    state.tab == CaptureViewModel.TAB_TYPE -> "Tap to edit before we write the brief."
+                    else -> "Tap to fix anything that was misheard."
+                },
+                style = DwType.caption,
+                color = Ink.ash,
+            )
+            if (fromFile) {
+                Spacer(Modifier.height(16.dp))
+                Text(FILE_KEPT, style = DwType.caption, color = Ink.graphite)
+            }
+            Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+/** Something is happening on the phone or with the AI: the writing picture, a title, progress. */
+@Composable
+private fun Processing(title: String, line: String, progress: Float?, modifier: Modifier = Modifier, message: String? = null) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
+        Spacer(Modifier.height(24.dp))
+        SpotIllustration(Picture.Writing, size = 220.dp, modifier = Modifier.offset(x = (-16).dp))
+        Spacer(Modifier.height(16.dp))
+        Text(title, style = DwType.title, color = Ink.ink)
+        if (message != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(message, style = DwType.secondary, color = Ink.teal)
+        }
+        Spacer(Modifier.height(20.dp))
+        ProgressRule(progress = progress?.takeIf { it > 0f })
+        Spacer(Modifier.height(14.dp))
+        Text(line, style = DwType.secondary, color = Ink.graphite)
     }
 }
 
@@ -411,20 +492,19 @@ private fun savedLine(state: CaptureViewModel.State): String = when {
 
 @Composable
 private fun DraftingPhase(state: CaptureViewModel.State) {
-    ScreenScaffold { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
-            Spacer(Modifier.weight(1f))
-            Text(state.progressMessage ?: "Writing the brief", style = DwType.heading, color = Ink.ink)
-            Spacer(Modifier.height(20.dp))
-            ProgressRule(progress = state.progress?.takeIf { it > 0f })
-            Spacer(Modifier.height(12.dp))
-            Text("This takes a minute or two.", style = DwType.caption, color = Ink.graphite)
-            Spacer(Modifier.weight(1f))
-        }
+    ScreenScaffold(topBar = { DwTopBar() }) { padding ->
+        Processing(
+            title = "Writing your brief",
+            message = state.progressMessage,
+            line = "This takes a minute or two.",
+            progress = state.progress,
+            modifier = Modifier.padding(padding),
+        )
     }
 }
 
-private const val FILE_NOTE = "Only the text is kept. The file is deleted as soon as it's read, and is never shared with the team."
+private const val FILE_NOTE = "It's read on your phone. The file never leaves it, and only the text you check is kept, in your draft."
+private const val FILE_KEPT = "Only the text is kept. The file is deleted as soon as it's read, and is never shared with the team."
 
 /** "From brief.pdf, 4 pages"; pages are left out when the backend can't count them. */
 private fun fileSource(file: CaptureViewModel.FileRead): String = buildString {

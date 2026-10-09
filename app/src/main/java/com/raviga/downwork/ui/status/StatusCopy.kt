@@ -13,7 +13,7 @@ object StatusCopy {
     fun markColor(status: String): Color = when (status) {
         ProjectStatus.DRAFT, ProjectStatus.CANCELLED -> Ink.ash
         ProjectStatus.SUBMITTED, ProjectStatus.CHANGES_REQUESTED, ProjectStatus.REVISION_REQUESTED -> Ink.amber
-        ProjectStatus.APPROVED -> Ink.cobalt
+        ProjectStatus.APPROVED -> Ink.teal
         ProjectStatus.DELIVERED, ProjectStatus.ACCEPTED -> Ink.moss
         ProjectStatus.REJECTED -> Ink.brick
         else -> Ink.ash

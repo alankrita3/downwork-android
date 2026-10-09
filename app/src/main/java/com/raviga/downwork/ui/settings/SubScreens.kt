@@ -1,5 +1,11 @@
 package com.raviga.downwork.ui.settings
 
+import com.raviga.downwork.ui.components.SpotIllustration
+import com.raviga.downwork.ui.components.Picture
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -59,13 +65,33 @@ import com.raviga.downwork.ui.openLink
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
-import com.raviga.downwork.ui.theme.Serif
 
 @Composable
-private fun switchColors() = SwitchDefaults.colors(
-    checkedThumbColor = Ink.paper, checkedTrackColor = Ink.cobalt,
-    uncheckedThumbColor = Ink.paper, uncheckedTrackColor = Ink.ash, uncheckedBorderColor = Ink.ash,
+internal fun switchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Ink.surface, checkedTrackColor = Ink.teal, checkedBorderColor = Ink.teal,
+    uncheckedThumbColor = Ink.surface, uncheckedTrackColor = Ink.ruleStrong, uncheckedBorderColor = Ink.ruleStrong,
 )
+
+/** The bundled fonts and their licence (SIL Open Font License 1.1, shipped in assets/licenses). */
+@Composable
+fun FontsScreen(nav: NavController) {
+    val context = LocalContext.current
+    val licence = remember { runCatching { context.assets.open("licenses/OFL.txt").bufferedReader().use { it.readText() } }.getOrDefault("") }
+    ScreenScaffold(topBar = { DwTopBar(onBack = { nav.popBackStack() }) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
+            Spacer(Modifier.height(8.dp))
+            Text("Fonts", style = DwType.title, color = Ink.ink)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "DownWork uses Bricolage Grotesque and Figtree, both under the SIL Open Font License 1.1.",
+                style = DwType.body, color = Ink.graphite,
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(licence, style = DwType.caption, color = Ink.graphite)
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
 
 @Composable
 fun DeliveryTargetsScreen(nav: NavController) {
@@ -168,11 +194,17 @@ fun PrivacyScreen(nav: NavController) {
         if (state.deleted) nav.navigate(Routes.WELCOME) { popUpTo(0) { inclusive = true } }
     }
 
-    ScreenScaffold(topBar = { DwTopBar(title = "Privacy and data", onBack = { nav.popBackStack() }) }) { padding ->
+    ScreenScaffold(topBar = { DwTopBar(onBack = { nav.popBackStack() }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            Column(Modifier.padding(horizontal = Dw.gutter)) {
+                SpotIllustration(Picture.Privacy, size = 180.dp, modifier = Modifier.offset(x = (-24).dp))
+                Spacer(Modifier.height(20.dp))
+                Text("Privacy and data", style = DwType.title, color = Ink.ink)
+                Spacer(Modifier.height(8.dp))
+            }
             Row(Modifier.fillMaxWidth().padding(horizontal = Dw.gutter, vertical = Dw.rowPadding), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("AI processing", style = DwType.body, color = Ink.ink)
+                    Text("AI processing", style = DwType.bodyMedium, color = Ink.ink)
                     Text(
                         if (aiOn) "On. Only the text of your notes and brief is sent, to write and price it: ${state.config.ai.providers.joinToString("; ").ifBlank { "our AI provider" }}." else "Off. DownWork cannot write briefs until this is on.",
                         style = DwType.secondary, color = Ink.graphite,
@@ -223,7 +255,7 @@ fun PrivacyScreen(nav: NavController) {
                 Text(legal.grievance.officerName.ifBlank { "To be appointed" }, style = DwType.body, color = Ink.ink)
                 if (legal.grievance.email.isNotBlank()) {
                     Text(
-                        legal.grievance.email, style = DwType.body, color = Ink.cobalt,
+                        legal.grievance.email, style = DwType.body, color = Ink.teal,
                         modifier = Modifier.clickable { emailLink(context, legal.grievance.email, "DownWork grievance") }.padding(vertical = 4.dp),
                     )
                 }
@@ -238,7 +270,7 @@ fun PrivacyScreen(nav: NavController) {
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            containerColor = Ink.paper,
+            containerColor = Ink.surface,
             title = { Text("Delete everything?", style = DwType.heading, color = Ink.ink) },
             text = {
                 Text(
@@ -277,7 +309,16 @@ fun RecoveryScreen(nav: NavController) {
             Spacer(Modifier.height(12.dp))
             val key = state.recoveryKey
             if (key != null) {
-                Text(key, style = DwType.heading.copy(fontFamily = Serif), color = Ink.ink)
+                Text(
+                    key,
+                    style = DwType.heading,
+                    color = Ink.ink,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Ink.surface, RoundedCornerShape(Dw.fieldRadius))
+                        .border(Dw.hairline, Ink.rule, RoundedCornerShape(Dw.fieldRadius))
+                        .padding(Dw.fieldPadding),
+                )
                 Spacer(Modifier.height(8.dp))
                 Row {
                     InlineAction("Copy", onClick = { clipboard.setText(AnnotatedString(key)) })
@@ -305,7 +346,7 @@ fun RecoveryScreen(nav: NavController) {
     if (confirmMove) {
         AlertDialog(
             onDismissRequest = { confirmMove = false },
-            containerColor = Ink.paper,
+            containerColor = Ink.surface,
             title = { Text("Switch to the other phone's projects?", style = DwType.heading, color = Ink.ink) },
             text = { Text("Anything created on this phone stays reachable only with this phone's key.", style = DwType.body, color = Ink.graphite) },
             confirmButton = { TextButton(onClick = { confirmMove = false; vm.recoverWith(otherKey) }) { Text("Switch", style = DwType.button, color = Ink.ink) } },

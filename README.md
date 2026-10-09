@@ -61,7 +61,7 @@ Kotlin, Jetpack Compose, Material 3, single activity, hand-wired dependencies.
 
 ```
 com.raviga.downwork
-├── data/api        Retrofit interface + DTOs for api-contract.md v0.6, errors, job polling
+├── data/api        Retrofit interface + DTOs for api-contract.md v0.7, errors, job polling
 ├── data/demo       In-process demo backend (DemoApi) and its heuristic brief writer
 ├── data/drafts     Drafts on the phone: sealed JSON files under a Keystore AES-GCM key
 ├── data/files      On-device document reading (PDFBox, ML Kit OCR, Word/RTF/text) and export
@@ -84,10 +84,15 @@ com.raviga.downwork
   closes; the phone keeps its own copy.
 - **Submitted projects**: the backend is the source of truth; repositories cache the last known
   state on disk so the app opens instantly and reads work offline.
-- **Voice**: live dictation through the on-device SpeechRecognizer drives the ink line and the
-  on-screen transcript. Phones without an offline model are offered typing or upload instead.
-- **Design**: mirrored from `DownWork iOS/docs/DESIGN.md`; Android notes in `docs/DESIGN.md`.
+- **Voice**: live dictation in English (US, UK, India or Australia accent) through the on-device
+  SpeechRecognizer drives the ink line and the on-screen transcript. Phones without an offline
+  model are offered typing or upload instead.
+- **Prices** are shown in US dollars (1 credit = $10 from `/config`); packs show Google Play's price.
+- **Design**: "Workshop", mirrored from `DownWork iOS/docs/DESIGN.md` with the same fonts and clay
+  pictures; Android notes in `docs/DESIGN.md`.
 
 ## Licences
 
-Instrument Serif is used under the SIL Open Font License (`LICENSES/InstrumentSerif-OFL.txt`).
+Bricolage Grotesque and Figtree are used under the SIL Open Font License
+(`LICENSES/BricolageGrotesque-Figtree-OFL.txt`, also shipped in the app under Settings > Fonts).
+The illustrations were made for DownWork with gpt-image-2.5 (prompts in `DownWork iOS/docs/illustrations`).

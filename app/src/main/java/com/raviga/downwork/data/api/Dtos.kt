@@ -118,7 +118,10 @@ data class AppConfig(
 
 @Serializable
 data class CreditsConfig(
-    val creditValueInr: Int = 1000,
+    /** v0.7: prices are shown in US dollars; "about $X" for credits is credits x this. */
+    val creditValueUsd: Double = 10.0,
+    /** Kept by the server for older builds. */
+    val creditValueInr: Int = 850,
     val packs: List<CreditPack> = emptyList(),
 )
 
@@ -127,6 +130,8 @@ data class CreditPack(
     val productId: String,
     val credits: Int,
     val bonusCredits: Int = 0,
+    /** Shown only until the store's real price loads. */
+    val priceHintUsd: Double? = null,
     val priceHintInr: Int? = null,
     val label: String = "",
 ) {
@@ -403,6 +408,8 @@ data class Quote(
     val documentVersion: Int = 0,
     val status: String = "current", // current | stale | expired | used
     val credits: Int,
+    /** v0.7: credits x creditValueUsd; the price to show. */
+    val usd: Double? = null,
     val inr: Int? = null,
     val bracketId: String? = null,
     val estimatedWorkingDays: Int = 0,
@@ -472,12 +479,19 @@ data class Milestone(
 @Serializable
 data class Delivery(
     val repoUrl: String? = null,
+    /** v0.7: the handover (KT) doc. Null only on projects delivered before v0.7; see [handover]. */
+    val handoverUrl: String? = null,
     val deliveredAt: String? = null,
     val note: String? = null,
     val transfer: Transfer? = null,
     val aws: AwsDelivery? = null,
     val acceptBy: String? = null,
-)
+) {
+    /** The handover doc, or where it usually is in the repository for projects delivered before v0.7. */
+    val handover: String?
+        get() = handoverUrl?.takeIf { it.isNotBlank() }
+            ?: repoUrl?.takeIf { it.isNotBlank() }?.let { "${it.trimEnd('/')}/blob/HEAD/HANDOVER.md" }
+}
 
 @Serializable
 data class Transfer(

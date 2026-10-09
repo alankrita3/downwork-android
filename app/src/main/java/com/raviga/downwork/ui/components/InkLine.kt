@@ -25,7 +25,7 @@ import kotlin.math.sin
 
 /**
  * The signature element: one thin line across the page that ripples with the
- * client's voice. Idle it is a flat rule-grey line; live it is cobalt. With
+ * client's voice. Idle it is a flat rule-grey line; live it is teal. With
  * animations disabled it stays flat and pulses opacity instead.
  */
 @Composable
@@ -65,7 +65,7 @@ fun InkLine(
             return@Canvas
         }
         if (reduceMotion) {
-            drawLine(Ink.cobalt.copy(alpha = pulse), androidx.compose.ui.geometry.Offset(0f, mid), androidx.compose.ui.geometry.Offset(w, mid), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(Ink.teal.copy(alpha = pulse), androidx.compose.ui.geometry.Offset(0f, mid), androidx.compose.ui.geometry.Offset(w, mid), strokeWidth = stroke.width, cap = StrokeCap.Round)
             return@Canvas
         }
         val amp = smooth.value * mid * 0.9f
@@ -81,6 +81,6 @@ fun InkLine(
             val y = mid + amp * env * wave
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, Ink.cobalt, style = stroke)
+        drawPath(path, Ink.teal, style = stroke)
     }
 }

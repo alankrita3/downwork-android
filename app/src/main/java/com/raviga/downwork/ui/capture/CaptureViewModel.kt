@@ -57,6 +57,8 @@ class CaptureViewModel(
         val phase: Phase = Phase.CAPTURE,
         val tab: Int = 0,                       // 0 speak, 1 type, 2 upload
         val speech: Speech = Speech.Checking,
+        /** English only; the accent steers the on-device model (from the phone's region at first). */
+        val accent: DictationEngine.Accent = DictationEngine.Accent.preferred(),
         val listening: Boolean = false,
         val committed: List<String> = emptyList(),
         val partial: String = "",
@@ -115,15 +117,24 @@ class CaptureViewModel(
     init { checkSpeech() }
 
     fun checkSpeech() {
+        val accent = _state.value.accent
         viewModelScope.launch {
-            val speech = when (val a = container.dictation.availability()) {
+            val speech = when (val a = container.dictation.availability(accent)) {
                 is DictationEngine.Availability.Ready -> Speech.Ready(a)
-                is DictationEngine.Availability.Downloading ->
-                    Speech.NotYet("Getting ${a.language} speech ready on this phone so it works offline. Try again in a minute.")
+                DictationEngine.Availability.Downloading ->
+                    Speech.NotYet("Getting English speech ready on this phone so it works offline. Try again in a minute.")
                 is DictationEngine.Availability.Unavailable -> Speech.Unavailable(a.message)
             }
-            _state.update { it.copy(speech = speech) }
+            // A newer pick of accent wins over a slower check for the old one.
+            _state.update { if (it.accent == accent) it.copy(speech = speech) else it }
         }
+    }
+
+    /** Speak in another English accent; it only steers the on-device model. */
+    fun selectAccent(accent: DictationEngine.Accent) {
+        if (_state.value.listening || accent == _state.value.accent) return
+        _state.update { it.copy(accent = accent, speech = Speech.Checking) }
+        checkSpeech()
     }
 
     fun selectTab(index: Int) {
@@ -478,6 +489,6 @@ class CaptureViewModel(
         const val TAB_SPEAK = 0
         const val TAB_TYPE = 1
         const val TAB_UPLOAD = 2
-        const val SAMPLE_DESCRIPTION = "I want an app for my salon in Delhi called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online with UPI. They should get a reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
+        const val SAMPLE_DESCRIPTION = "I want an app for my salon in Austin called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online by card. They should get a text reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
     }
 }

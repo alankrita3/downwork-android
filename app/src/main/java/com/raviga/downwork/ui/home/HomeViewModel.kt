@@ -29,6 +29,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val updatedAt: String,
         val route: String,
         val refused: Boolean = false,
+        /** What it cost, for projects that were paid for and not refunded. */
+        val credits: Int? = null,
     )
 
     /**
@@ -63,6 +65,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 unread = s.unreadComments,
                 updatedAt = s.updatedAt.orEmpty(),
                 route = Routes.forProject(s.id, s.status),
+                credits = s.credits.takeIf { s.status != ProjectStatus.REJECTED && s.status != ProjectStatus.CANCELLED },
             )
         }
         (localDrafts + submitted).sortedByDescending { it.updatedAt }

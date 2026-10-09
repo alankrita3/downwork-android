@@ -47,7 +47,7 @@ fun DwRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .padding(horizontal = horizontalPadding, vertical = Dw.rowPadding),
+                .padding(horizontal = horizontalPadding, vertical = Dw.rowPadding + 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (leading != null) {
@@ -55,9 +55,9 @@ fun DwRow(
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, style = DwType.body, color = titleColor)
+                Text(title, style = DwType.bodyMedium, color = titleColor)
                 if (subtitle != null) {
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(subtitle, style = DwType.secondary, color = subtitleColor)
                 }
             }
@@ -67,7 +67,7 @@ fun DwRow(
             }
             if (chevron) {
                 Spacer(Modifier.width(4.dp))
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(22.dp))
             }
         }
         if (hairline) Hairline(Modifier.padding(horizontal = horizontalPadding))

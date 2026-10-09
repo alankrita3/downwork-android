@@ -158,11 +158,13 @@ fun AppNavHost(nav: NavHostController, pendingDeepLinkProject: String?, onDeepLi
         composable(Routes.CONNECT_AWS) { ConnectAwsScreen(nav) }
         composable(Routes.STATUS) { entry -> StatusScreen(nav, entry.arguments?.getString("projectId").orEmpty()) }
         composable(Routes.DELIVERY) { entry -> DeliveryScreen(nav, entry.arguments?.getString("projectId").orEmpty()) }
+        composable(Routes.GO_LIVE) { entry -> com.raviga.downwork.ui.status.GoLiveScreen(nav, entry.arguments?.getString("projectId").orEmpty()) }
         composable(Routes.CREDITS) { CreditsScreen(nav) }
         composable(Routes.SETTINGS) { SettingsScreen(nav) }
         composable(Routes.DELIVERY_TARGETS) { DeliveryTargetsScreen(nav) }
         composable(Routes.PRIVACY) { PrivacyScreen(nav) }
         composable(Routes.RECOVERY) { RecoveryScreen(nav) }
+        composable(Routes.FONTS) { com.raviga.downwork.ui.settings.FontsScreen(nav) }
         composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav) }
     }
 }
@@ -173,7 +175,7 @@ private fun UpgradeScreen() {
     ScreenScaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(Dw.gutter)) {
             Spacer(Modifier.height(48.dp))
-            Text("Update DownWork", style = DwType.display, color = Ink.ink)
+            Text("Update DownWork", style = DwType.title, color = Ink.ink)
             Spacer(Modifier.height(16.dp))
             Text("This version is too old to talk to DownWork. Update it from the Play Store to continue.", style = DwType.body, color = Ink.graphite)
             Spacer(Modifier.height(32.dp))

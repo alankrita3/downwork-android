@@ -14,26 +14,31 @@ the iOS app (folder "DownWork iOS") and the backend (folder "DownWork Backend").
 
 ## Sources of truth
 
-- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.6, local-first, at the time of writing).
+- API: `DownWork Backend/docs/api-contract.md` (canonical; v0.7, local-first, prices in US dollars,
+  English-only speech, at the time of writing).
   Drafts never reach the server: they live in `data/drafts` (sealed on the phone) and go through
   `DraftRepository`; only text goes to the stateless `/ai/*` and `/quotes` jobs; `POST /projects`
   (submit) is the first time content is stored. Never add a path that uploads recordings or files.
   Wire shapes live in `data/api/Dtos.kt` and must track it exactly (camelCase keys,
   snake_case enums, `202 {job}` for job starts, bare `Job` from `GET /jobs/{id}`).
-- Design: `DownWork iOS/docs/DESIGN.md` ("Wet ink, dry ink"). Tokens in `ui/theme`,
-  status vocabulary in `ui/status/StatusCopy.kt`, Android notes in `docs/DESIGN.md`.
+- Design: `DownWork iOS/docs/DESIGN.md` ("Workshop", direction A). Tokens in `ui/theme`,
+  status vocabulary in `ui/status/StatusCopy.kt`, Android notes in `docs/DESIGN.md`. Fonts and
+  pictures are the iOS files (pictures converted with `cwebp -q 88 -alpha_q 100 -m 6` into
+  `res/drawable-nodpi/illo_*.webp`); when iOS changes one, convert and copy it again.
 
 ## Conventions
 
-- Light appearance only. Paper background, ink text, cobalt is the only accent. No cards,
-  shadows or gradients; hairline rows; 8dp grid; 20dp gutter; 52dp buttons, radius 12.
-- Instrument Serif (bundled, OFL) for display/title/heading/dictation and figures; Roboto for
-  everything else, including document bodies.
+- Light appearance only. Warm white paper, near-black ink, teal for anything live, marigold for
+  highlights. White tiles with a rule border for choices and grouped facts (never shadows or
+  gradients); hairline rows elsewhere; 8dp grid; 20dp gutter; 56dp buttons, radius 18.
+- Bricolage Grotesque (bundled, OFL) for titles, headings, figures and dictation; Figtree (bundled,
+  OFL) for everything else, including document bodies. One clay picture per screen at most.
 - Sentence case everywhere; buttons say what happens ("Submit and pay 48 credits").
 - Errors branch on `ApiException.code`, never on message text; copy lives in `StatusCopy.errorLine`.
 - Components in `ui/components` are the vocabulary: `PrimaryButton`, `SecondaryButton`,
-  `TertiaryButton`, `InlineAction`, `DwTextField`, `PlainEditor`, `DwRow`, `DwTopBar`,
-  `BottomBar`, `ScreenScaffold`, `BodyText`, `SectionHeading`, `InkLine`, `TimelineView`.
+  `TertiaryButton`, `InlineAction`, `DwTextField`, `BoxedEditor`, `PlainEditor`, `DwRow`, `DwTopBar`,
+  `BottomBar`, `ScreenScaffold`, `BodyText`, `SectionHeading`, `InkLine`, `TimelineView`,
+  `Modifier.tile()`, `Chip`, `ChipRow`, `PrivacyNote`, `Illustration` / `SpotIllustration` / `HeroIllustration`.
   Reach for these before writing new chrome.
 - ViewModels take `AppContainer` and expose one `StateFlow<State>`; screens are thin.
 

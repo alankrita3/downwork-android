@@ -75,6 +75,7 @@ fun SettingsScreen(nav: NavController) {
             )
             DwRow(title = "Privacy policy", onClick = { openLink(context, legal.privacyUrl) }, chevron = false)
             DwRow(title = "Terms of service", onClick = { openLink(context, legal.termsUrl) }, chevron = false)
+            DwRow(title = "Fonts", subtitle = "Bricolage Grotesque and Figtree, open font licence", onClick = { nav.navigate(Routes.FONTS) })
             if (vm.isDebug) DebugBackendRow(context, vm.isDemo)
             if (vm.isDemo) {
                 Spacer(Modifier.height(24.dp))
@@ -87,31 +88,27 @@ fun SettingsScreen(nav: NavController) {
                     com.raviga.downwork.ui.components.InlineNotice(state.error)
                 }
             }
-            Spacer(Modifier.height(24.dp))
-            Column(Modifier.padding(horizontal = Dw.gutter)) {
-                Text("DownWork ${vm.versionName}", style = DwType.caption, color = Ink.graphite)
-                Text(legal.companyName, style = DwType.caption, color = Ink.graphite)
-                if (legal.companyAddress.isNotBlank()) Text(legal.companyAddress, style = DwType.caption, color = Ink.graphite)
-                val clientId = state.me?.clientId
-                if (legal.supportEmail.isNotBlank()) Text(
-                    legal.supportEmail,
-                    style = DwType.caption, color = Ink.cobalt,
-                    modifier = Modifier.clickable {
-                        com.raviga.downwork.ui.emailLink(context, legal.supportEmail, "DownWork support" + (clientId?.let { " ($it)" } ?: ""))
+            Text("About", style = DwType.heading, color = Ink.ink, modifier = Modifier.padding(horizontal = Dw.gutter).padding(top = 32.dp, bottom = 4.dp))
+            DwRow(title = "DownWork", subtitle = vm.versionName + if (vm.isDemo) ", demo backend on this phone" else "")
+            DwRow(title = legal.companyName, subtitle = legal.companyAddress.ifBlank { null })
+            val clientId = state.me?.clientId
+            if (legal.supportEmail.isNotBlank()) DwRow(
+                title = "Support",
+                subtitle = legal.supportEmail,
+                subtitleColor = Ink.teal,
+                chevron = false,
+                onClick = { com.raviga.downwork.ui.emailLink(context, legal.supportEmail, "DownWork support" + (clientId?.let { " ($it)" } ?: "")) },
+            )
+            // Support asks for this; long-press copies it.
+            clientId?.let { id ->
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                DwRow(
+                    title = "Support ID",
+                    subtitle = id,
+                    modifier = Modifier.pointerInput(id) {
+                        detectTapGestures(onLongPress = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(id)) })
                     },
                 )
-                // Support asks for this; long-press copies it.
-                clientId?.let { id ->
-                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-                    Text(
-                        "Support ID $id",
-                        style = DwType.caption, color = Ink.ash,
-                        modifier = Modifier.pointerInput(id) {
-                            detectTapGestures(onLongPress = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(id)) })
-                        },
-                    )
-                }
-                if (vm.isDemo) Text("Demo backend on this phone", style = DwType.caption, color = Ink.ash)
             }
             Spacer(Modifier.height(32.dp))
         }
@@ -123,9 +120,9 @@ fun SettingsScreen(nav: NavController) {
 private fun DebugBackendRow(context: Context, isDemo: Boolean) {
     var useDemo by remember { mutableStateOf(DebugFlags.useDemoBackend(context)) }
     Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = Dw.gutter, vertical = Dw.rowPadding), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Dw.gutter, vertical = Dw.rowPadding + 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Demo backend (debug)", style = DwType.body, color = Ink.ink)
+                Text("Demo backend (debug)", style = DwType.bodyMedium, color = Ink.ink)
                 Text(
                     if (useDemo != isDemo) "Restart the app to apply" else if (isDemo) "Using the in-app demo backend" else "Using the DownWork dev API",
                     style = DwType.secondary, color = if (useDemo != isDemo) Ink.amber else Ink.graphite,
@@ -134,7 +131,7 @@ private fun DebugBackendRow(context: Context, isDemo: Boolean) {
             Switch(
                 checked = useDemo,
                 onCheckedChange = { useDemo = it; DebugFlags.setUseDemoBackend(context, it) },
-                colors = SwitchDefaults.colors(checkedThumbColor = Ink.paper, checkedTrackColor = Ink.cobalt, uncheckedThumbColor = Ink.paper, uncheckedTrackColor = Ink.ash, uncheckedBorderColor = Ink.ash),
+                colors = switchColors(),
             )
         }
         Hairline(Modifier.padding(horizontal = Dw.gutter))

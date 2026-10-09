@@ -25,8 +25,29 @@ import kotlin.coroutines.resume
  * on-device recogniser (Android 12+) is used, never the cloud one. It stops
  * at every pause, so this restarts it until the flow is cancelled and reports
  * each finished utterance separately. No audio is recorded or kept.
+ *
+ * Speech is English only (founder, contract v0.7); the [Accent] steers the
+ * on-device model, and the brief is always written in English.
  */
 class DictationEngine(private val context: Context) {
+
+    /** English accents offered for speaking, the same four as iOS. */
+    enum class Accent(val tag: String, val label: String) {
+        US("en-US", "English (US)"),
+        UK("en-GB", "English (UK)"),
+        INDIA("en-IN", "English (India)"),
+        AUSTRALIA("en-AU", "English (Australia)");
+
+        companion object {
+            /** The accent that matches the phone's region, else US English. */
+            fun preferred(region: String? = Locale.getDefault().country): Accent = when (region?.uppercase()) {
+                "GB", "IE" -> UK
+                "IN" -> INDIA
+                "AU", "NZ" -> AUSTRALIA
+                else -> US
+            }
+        }
+    }
 
     sealed interface Event {
         data object Ready : Event
@@ -38,9 +59,9 @@ class DictationEngine(private val context: Context) {
 
     sealed interface Availability {
         /** [languageTag] is the on-device model that will be used. */
-        data class Ready(val languageTag: String, val alsoHindi: Boolean) : Availability
-        /** The model for this language is downloading (we asked for it); try again shortly. */
-        data class Downloading(val language: String) : Availability
+        data class Ready(val languageTag: String) : Availability
+        /** The English model is downloading (we asked for it); try again shortly. */
+        data object Downloading : Availability
         data class Unavailable(val message: String) : Availability
     }
 
@@ -48,35 +69,29 @@ class DictationEngine(private val context: Context) {
     val isAvailable: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
-    /** Which on-device model to use for [locale], downloading it first if the phone offers that. Main thread. */
-    suspend fun availability(locale: Locale = Locale.getDefault()): Availability {
+    /** Which on-device English model to use for [accent], downloading one first if the phone offers that. Main thread. */
+    suspend fun availability(accent: Accent = Accent.preferred()): Availability {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return Availability.Unavailable(NEEDS_ANDROID_12)
         if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) return Availability.Unavailable(NO_OFFLINE_SPEECH)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return Availability.Ready(locale.toLanguageTag(), alsoHindi = false)
-        return supportOnT(locale)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return Availability.Ready(accent.tag)
+        return supportOnT(accent)
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private suspend fun supportOnT(locale: Locale): Availability {
-        val support = querySupport(locale) ?: return Availability.Ready(locale.toLanguageTag(), alsoHindi = false)
-        val installed = support.installedOnDeviceLanguages
-        val wanted = locale.toLanguageTag()
-        pick(wanted, installed)?.let { tag ->
-            return Availability.Ready(tag, alsoHindi = installed.any { it.startsWith("hi") } && !tag.startsWith("hi"))
-        }
-        val pending = support.pendingOnDeviceLanguages
-        pick(wanted, pending)?.let { return Availability.Downloading(locale.displayLanguage) }
-        val supported = support.supportedOnDeviceLanguages
-        pick(wanted, supported)?.let { tag ->
+    private suspend fun supportOnT(accent: Accent): Availability {
+        val locale = Locale.forLanguageTag(accent.tag)
+        val support = querySupport(locale) ?: return Availability.Ready(accent.tag)
+        // The accent's own model, else any English one already on the phone.
+        pick(accent.tag, support.installedOnDeviceLanguages)?.let { return Availability.Ready(it) }
+        if (pick(accent.tag, support.pendingOnDeviceLanguages) != null) return Availability.Downloading
+        pick(accent.tag, support.supportedOnDeviceLanguages)?.let { tag ->
             SpeechRecognizer.createOnDeviceSpeechRecognizer(context).apply {
-                runCatching { triggerModelDownload(intent(Locale.forLanguageTag(tag), alsoHindi = false)) }
+                runCatching { triggerModelDownload(intent(Locale.forLanguageTag(tag))) }
                 destroy()
             }
-            return Availability.Downloading(locale.displayLanguage)
+            return Availability.Downloading
         }
-        // The phone's language has no offline model: fall back to an English one if installed.
-        pick("en-IN", installed)?.let { return Availability.Ready(it, alsoHindi = installed.any { l -> l.startsWith("hi") }) }
-        return Availability.Unavailable(NO_MODEL_FOR_LANGUAGE)
+        return Availability.Unavailable(NO_ENGLISH_MODEL)
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -85,7 +100,7 @@ class DictationEngine(private val context: Context) {
         cont.invokeOnCancellation { runCatching { recognizer.destroy() } }
         runCatching {
             recognizer.checkRecognitionSupport(
-                intent(locale, alsoHindi = false),
+                intent(locale),
                 ContextCompat.getMainExecutor(context),
                 object : RecognitionSupportCallback {
                     override fun onSupportResult(support: RecognitionSupport) {
@@ -104,14 +119,14 @@ class DictationEngine(private val context: Context) {
         }
     }
 
-    /** Same language exactly, else the same language in another region. */
+    /** The same accent exactly, else English in another region. */
     private fun pick(wanted: String, offered: List<String>): String? {
         offered.firstOrNull { it.equals(wanted, ignoreCase = true) }?.let { return it }
         val lang = wanted.substringBefore('-').lowercase()
         return offered.firstOrNull { it.substringBefore('-').lowercase() == lang }
     }
 
-    private fun intent(language: Locale, alsoHindi: Boolean) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    private fun intent(language: Locale) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.toLanguageTag())
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
@@ -121,14 +136,6 @@ class DictationEngine(private val context: Context) {
         // Keep listening through natural pauses between sentences.
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
-        // English or Hindi, as the chooser promises, where the phone has both models (Android 14+).
-        if (alsoHindi && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val languages = arrayListOf(language.toLanguageTag(), "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
-            putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, languages)
-            putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED)
-            putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, languages)
-        }
     }
 
     /** Collect on the main thread. Requires [Availability.Ready]. */
@@ -138,7 +145,7 @@ class DictationEngine(private val context: Context) {
         var active = true
         // Busy/client errors in a row: past a few, the recognizer is stuck rather than idle.
         var stuck = 0
-        val intent = intent(Locale.forLanguageTag(ready.languageTag), ready.alsoHindi)
+        val intent = intent(Locale.forLanguageTag(ready.languageTag))
 
         fun restart() {
             if (!active) return
@@ -193,11 +200,11 @@ class DictationEngine(private val context: Context) {
 
         const val NEEDS_ANDROID_12 = "Speaking needs Android 12 or newer, so your voice never leaves this phone. Type or upload instead."
         const val NO_OFFLINE_SPEECH = "This phone can't recognise speech offline, and your voice never leaves it. Type or upload instead."
-        const val NO_MODEL_FOR_LANGUAGE = "This phone has no offline speech for your language yet. Type or upload instead."
+        const val NO_ENGLISH_MODEL = "This phone has no offline English speech yet. Type or upload instead."
 
         /** Copy for a fatal recogniser error. */
         fun errorLine(code: Int): String = when (code) {
-            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> NO_MODEL_FOR_LANGUAGE
+            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> NO_ENGLISH_MODEL
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "DownWork needs the microphone to listen. Allow it in Settings, or type instead."
             else -> "The microphone stopped. Tap the button to try again, or type instead."
         }

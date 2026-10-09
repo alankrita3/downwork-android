@@ -30,6 +30,7 @@ import com.raviga.downwork.ui.components.Hairline
 import com.raviga.downwork.ui.components.InlineNotice
 import com.raviga.downwork.ui.components.PrimaryButton
 import com.raviga.downwork.ui.components.ScreenScaffold
+import com.raviga.downwork.ui.components.TertiaryButton
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
@@ -64,35 +65,37 @@ fun AiConsentScreen(nav: NavController) {
                         busy = false
                     }
                 })
+                TertiaryButton("Not now", onClick = { nav.popBackStack() })
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
             Spacer(Modifier.height(16.dp))
             Text("Before we send this to AI", style = DwType.title, color = Ink.ink)
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Block("What is sent", "Only the text of your notes and brief, to write and price it. Never your recordings or files. We don't store it.")
             // The backend's provider line carries the full disclosure (retention, no training); show it as sent.
-            Block("To whom", providers.joinToString("\n"))
+            Block("Who processes it", providers.joinToString("\n"))
             Block(
-                "How long",
-                "Nothing, until you submit. Drafts are kept only on this phone. When you submit, we keep the brief to review and build it, and delete it when you accept the delivery.",
+                "How long it is kept",
+                "Recordings and files never leave your phone. Drafts are stored only on your phone. To write or price a brief, its text is sent to our AI, used once, and not stored by us. When you submit, we keep the brief to review and build it, and delete it when you accept the delivery.",
             )
-            Spacer(Modifier.height(8.dp))
+            Block("When it is sent", "Only after you turn this on and continue. You can turn it off later in Settings.")
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Allow AI processing", style = DwType.body, color = Ink.ink, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text("Allow AI processing", style = DwType.bodyMedium, color = Ink.ink)
+                    Text("Needed to write your brief", style = DwType.caption, color = Ink.graphite)
+                }
                 Switch(
                     checked = allow,
                     onCheckedChange = { allow = it },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Ink.paper, checkedTrackColor = Ink.cobalt,
-                        uncheckedThumbColor = Ink.paper, uncheckedTrackColor = Ink.ash, uncheckedBorderColor = Ink.ash,
+                        checkedThumbColor = Ink.surface, checkedTrackColor = Ink.teal, checkedBorderColor = Ink.teal,
+                        uncheckedThumbColor = Ink.surface, uncheckedTrackColor = Ink.ruleStrong, uncheckedBorderColor = Ink.ruleStrong,
                     ),
                 )
             }
             Hairline()
-            Spacer(Modifier.height(12.dp))
-            Text("You can withdraw this any time in Settings. Without it, DownWork cannot write briefs.", style = DwType.caption, color = Ink.graphite)
             Spacer(Modifier.height(32.dp))
         }
     }
@@ -101,8 +104,8 @@ fun AiConsentScreen(nav: NavController) {
 @Composable
 private fun Block(title: String, body: String) {
     Column(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-        Text(title, style = DwType.secondary, color = Ink.graphite)
+        Text(title, style = DwType.bodyMedium, color = Ink.ink)
         Spacer(Modifier.height(4.dp))
-        Text(body, style = DwType.body, color = Ink.ink)
+        Text(body, style = DwType.secondary, color = Ink.graphite)
     }
 }

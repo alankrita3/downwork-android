@@ -27,7 +27,7 @@ import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
 
-/** Wash background, radius 10, 14dp padding, no border; cobalt 1px outline when focused. */
+/** Surface fill, radius 16, 14dp padding, 1dp rule border; teal 1.5dp when focused, brick on error. */
 @Composable
 fun DwTextField(
     value: String,
@@ -50,20 +50,20 @@ fun DwTextField(
     val shape = RoundedCornerShape(Dw.fieldRadius)
     val outline = when {
         isError -> Ink.brick
-        focused -> Ink.cobalt
-        else -> null
+        focused -> Ink.teal
+        else -> Ink.rule
     }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .background(Ink.wash, shape)
-            .then(if (outline != null) Modifier.border(Dw.hairline, outline, shape) else Modifier)
+            .background(Ink.surface, shape)
+            .border(if (focused || isError) 1.5.dp else Dw.hairline, outline, shape)
             .padding(Dw.fieldPadding),
         enabled = enabled,
         textStyle = textStyle.copy(color = if (enabled) Ink.ink else Ink.ash),
-        cursorBrush = SolidColor(Ink.cobalt),
+        cursorBrush = SolidColor(Ink.teal),
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
@@ -85,7 +85,41 @@ fun DwTextField(
     )
 }
 
-/** Borderless editor for long text (transcript, section bodies): paper background, body type. */
+/** Long text in a field box (typed description, transcript review): surface fill, rule border, teal when focused. */
+@Composable
+fun BoxedEditor(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    minHeight: androidx.compose.ui.unit.Dp = 220.dp,
+    textStyle: TextStyle = DwType.body,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(Dw.fieldRadius)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = minHeight)
+            .background(Ink.surface, shape)
+            .border(if (focused) 1.5.dp else Dw.hairline, if (focused) Ink.teal else Ink.rule, shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        textStyle = textStyle.copy(color = Ink.ink),
+        cursorBrush = SolidColor(Ink.teal),
+        interactionSource = interaction,
+        decorationBox = { inner ->
+            Box {
+                if (value.isEmpty() && placeholder != null) Text(placeholder, style = textStyle, color = Ink.ash)
+                inner()
+            }
+        },
+    )
+}
+
+/** Borderless editor for long text (section bodies): paper background, body type. */
 @Composable
 fun PlainEditor(
     value: String,
@@ -102,7 +136,7 @@ fun PlainEditor(
         modifier = modifier.fillMaxWidth(),
         enabled = enabled,
         textStyle = textStyle.copy(color = Ink.ink),
-        cursorBrush = SolidColor(Ink.cobalt),
+        cursorBrush = SolidColor(Ink.teal),
         minLines = minLines,
         decorationBox = { inner ->
             Box {

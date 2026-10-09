@@ -17,7 +17,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.raviga.downwork.ui.LocalAppContainer
-import com.raviga.downwork.ui.components.DwRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import com.raviga.downwork.ui.components.Illustration
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.PrivacyNote
+import com.raviga.downwork.ui.components.tile
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
 import com.raviga.downwork.ui.theme.Ink
@@ -44,49 +54,48 @@ fun DescribeChooserSheet(projectTitle: String?, onPick: (String) -> Unit, onDism
         dragHandle = null,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
     ) {
-        DescribeChoices(projectTitle, onPick, Modifier.padding(top = 24.dp, bottom = 16.dp).navigationBarsPadding())
+        DescribeChoices(projectTitle, onPick, Modifier.padding(top = 28.dp, bottom = 20.dp).navigationBarsPadding())
     }
 }
 
 /** The three choices; also shown on Capture after a document is saved as a note. */
 @Composable
 fun DescribeChoices(projectTitle: String?, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().padding(horizontal = Dw.gutter)) {
         Text(
             if (projectTitle == null) "Describe your project" else "Add to ${projectTitle.ifBlank { "this project" }}",
             style = DwType.title,
             color = Ink.ink,
-            modifier = Modifier.padding(horizontal = Dw.gutter),
         )
         Spacer(Modifier.height(8.dp))
         Text(
             if (projectTitle == null) "Whichever is easiest. You can mix them, and edit everything after." else "Add more detail, whichever way is easiest.",
-            style = DwType.caption,
+            style = DwType.secondary,
             color = Ink.graphite,
-            modifier = Modifier.padding(horizontal = Dw.gutter),
         )
-        Spacer(Modifier.height(12.dp))
-        DwRow(
-            title = "Speak",
-            subtitle = "Talk it through in English or Hindi. We write it up.",
-            onClick = { onPick(DescribeWith.SPEAK) },
-        )
-        DwRow(
-            title = "Type",
-            subtitle = "Write or paste a description.",
-            onClick = { onPick(DescribeWith.TYPE) },
-        )
-        DwRow(
-            title = "Upload a document",
-            subtitle = "A PDF, Word or text file you already have.",
-            onClick = { onPick(DescribeWith.UPLOAD) },
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Your recordings and files never leave your phone. Drafts are kept only on this phone.",
-            style = DwType.caption,
-            color = Ink.graphite,
-            modifier = Modifier.padding(horizontal = Dw.gutter),
-        )
+        Spacer(Modifier.height(24.dp))
+        Choice(Picture.Speak, "Speak", "Talk it through in English. We write it up.") { onPick(DescribeWith.SPEAK) }
+        Spacer(Modifier.height(Dw.tileGap))
+        Choice(Picture.Type, "Type", "Write or paste a description.") { onPick(DescribeWith.TYPE) }
+        Spacer(Modifier.height(Dw.tileGap))
+        Choice(Picture.Upload, "Upload a document", "A PDF, Word or text file you already have.") { onPick(DescribeWith.UPLOAD) }
+        Spacer(Modifier.height(20.dp))
+        PrivacyNote("Your recordings and files never leave your phone. Drafts are kept only on this phone.")
+    }
+}
+
+/** One way of describing: its picture, a heading and one line, in a tile. */
+@Composable
+private fun Choice(picture: Picture, title: String, detail: String, onClick: () -> Unit) {
+    Row(Modifier.tile(padding = 12.dp, onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Illustration(picture, modifier = Modifier.size(84.dp), height = 84.dp, radius = 18.dp)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = DwType.heading, color = Ink.ink)
+            Spacer(Modifier.height(4.dp))
+            Text(detail, style = DwType.secondary, color = Ink.graphite)
+        }
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(22.dp))
     }
 }

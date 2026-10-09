@@ -4,7 +4,25 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.raviga.downwork.ui.components.Dot
+import com.raviga.downwork.ui.components.Illustration
+import com.raviga.downwork.ui.components.Picture
+import com.raviga.downwork.ui.components.tile
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +52,6 @@ import androidx.navigation.NavController
 import com.raviga.downwork.data.api.ProjectStatus
 import com.raviga.downwork.ui.LocalAppContainer
 import com.raviga.downwork.ui.components.BottomBar
-import com.raviga.downwork.ui.components.DwRow
 import com.raviga.downwork.ui.components.DwTopBar
 import com.raviga.downwork.ui.components.ErrorState
 import com.raviga.downwork.ui.components.InlineAction
@@ -84,11 +100,7 @@ fun HomeScreen(nav: NavController) {
         topBar = {
             DwTopBar(
                 actions = {
-                    InlineAction(
-                        text = "$balance ${if (balance == 1) "credit" else "credits"}",
-                        onClick = { nav.navigate(Routes.CREDITS) },
-                        color = Ink.ink,
-                    )
+                    CreditsPill(balance, onClick = { nav.navigate(Routes.CREDITS) })
                     IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = Ink.ink)
                     }
@@ -102,15 +114,21 @@ fun HomeScreen(nav: NavController) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (refreshing && summaries.isNotEmpty()) ProgressRule(Modifier.padding(horizontal = Dw.gutter)) else Spacer(Modifier.height(2.dp))
+            if (refreshing && summaries.isNotEmpty()) ProgressRule(Modifier.padding(horizontal = Dw.gutter)) else Spacer(Modifier.height(4.dp))
             when {
                 error != null && summaries.isEmpty() -> ErrorState(error!!, onRetry = { vm.refresh() })
                 summaries.isEmpty() && loadedOnce -> {
-                    Column(Modifier.fillMaxSize().padding(horizontal = Dw.gutter)) {
-                        Spacer(Modifier.height(40.dp))
-                        Text("What should we build?", style = DwType.display, color = Ink.ink)
-                        Spacer(Modifier.height(16.dp))
-                        Text("No projects yet. Tap the microphone and describe what you want built.", style = DwType.body, color = Ink.graphite)
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
+                        Spacer(Modifier.height(12.dp))
+                        Illustration(Picture.HomeEmpty, height = 220.dp)
+                        Spacer(Modifier.height(24.dp))
+                        Text("What should we build?", style = DwType.title, color = Ink.ink)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Describe what you want built: say it, type it, or upload a document you already have. We turn it into a brief you can edit, quote it, and build it.",
+                            style = DwType.body,
+                            color = Ink.graphite,
+                        )
                         if (signedOut) {
                             Spacer(Modifier.height(24.dp))
                             Text(
@@ -127,39 +145,81 @@ fun HomeScreen(nav: NavController) {
                             Spacer(Modifier.height(24.dp))
                             Text("Demo backend: everything works on this phone until the DownWork API is connected.", style = DwType.caption, color = Ink.ash)
                         }
+                        Spacer(Modifier.height(24.dp))
                     }
                 }
                 summaries.isEmpty() -> Spacer(Modifier.height(1.dp))
-                else -> LazyColumn(Modifier.fillMaxSize()) {
+                else -> LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = Dw.gutter, end = Dw.gutter, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(Dw.tileGap),
+                ) {
                     item {
                         Text(
                             "Your projects",
-                            style = DwType.display,
+                            style = DwType.title,
                             color = Ink.ink,
-                            modifier = Modifier.padding(horizontal = Dw.gutter).padding(top = 32.dp, bottom = 20.dp),
+                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
                         )
                     }
                     items(summaries, key = { it.id }) { row ->
-                        val subtitle = buildString {
-                            append(row.line)
-                            if (row.unread > 0) append(" · ${row.unread} new")
-                        }
-                        DwRow(
-                            title = row.title,
-                            subtitle = subtitle,
-                            subtitleColor = when {
-                                row.refused -> Ink.brick
-                                row.unread > 0 -> Ink.cobalt
-                                else -> Ink.graphite
-                            },
-                            onClick = { nav.navigate(row.route) },
-                            chevron = false,
-                            trailing = { StatusMark(if (row.refused) ProjectStatus.REJECTED else row.status) },
-                        )
+                        ProjectTile(row, onClick = { nav.navigate(row.route) })
                     }
-                    item { Spacer(Modifier.fillMaxWidth().height(24.dp)) }
                 }
             }
         }
+    }
+}
+
+/** Marigold dot and the balance; opens Credits. */
+@Composable
+private fun CreditsPill(balance: Int, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "$balance ${if (balance == 1) "credit" else "credits"}" }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Dot(Ink.marigold)
+        Spacer(Modifier.width(6.dp))
+        Text("$balance ${if (balance == 1) "credit" else "credits"}", style = DwType.secondaryMedium, color = Ink.ink)
+    }
+}
+
+/** One project on Home: where it stands, its name, and what it cost. */
+@Composable
+private fun ProjectTile(row: HomeViewModel.Row, onClick: () -> Unit) {
+    val line = buildString {
+        append(row.line)
+        if (row.unread > 0) append(" · ${row.unread} new")
+    }
+    Row(Modifier.tile(padding = 18.dp, onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusMark(if (row.refused) ProjectStatus.REJECTED else row.status)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    line,
+                    style = DwType.caption,
+                    color = when {
+                        row.refused -> Ink.brick
+                        row.unread > 0 -> Ink.teal
+                        else -> Ink.graphite
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(row.title, style = DwType.heading, color = Ink.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (row.credits != null && row.status != ProjectStatus.DRAFT) {
+                Spacer(Modifier.height(6.dp))
+                Text("${row.credits} ${if (row.credits == 1) "credit" else "credits"}", style = DwType.caption, color = Ink.ash)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Ink.ash, modifier = Modifier.size(22.dp))
     }
 }

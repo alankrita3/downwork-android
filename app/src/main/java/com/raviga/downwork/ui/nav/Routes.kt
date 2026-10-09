@@ -34,12 +34,15 @@ object Routes {
 
     const val DELIVERY = "delivery/{projectId}"
     fun delivery(projectId: String) = "delivery/$projectId"
+    const val GO_LIVE = "golive/{projectId}"
+    fun goLive(projectId: String) = "golive/$projectId"
 
     const val CREDITS = "credits"
     const val SETTINGS = "settings"
     const val DELIVERY_TARGETS = "settings/targets"
     const val PRIVACY = "settings/privacy"
     const val RECOVERY = "settings/recovery"
+    const val FONTS = "settings/fonts"
     const val NOTIFICATIONS = "settings/notifications"
 
     /** Where a project opens from the list, by status. Drafts open the document screen, which handles "no brief yet". */

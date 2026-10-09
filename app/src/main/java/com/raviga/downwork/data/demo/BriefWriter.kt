@@ -56,8 +56,8 @@ object BriefWriter {
     }
 
     private val signals = listOf(
-        Signal("\\b(log ?in|sign ?(in|up)|account|register|otp|password)\\b", "Sign in with phone number (OTP) and email", listOf("Sign in", "Verify OTP"), "SMS OTP (MSG91 or Firebase Auth)", "user profiles"),
-        Signal("\\b(pay|payment|checkout|upi|razorpay|stripe|price|buy|purchase|wallet)\\b", "Payments with UPI, cards and net banking", listOf("Checkout", "Payment history"), "Razorpay (UPI, cards, net banking)", "payments"),
+        Signal("\\b(log ?in|sign ?(in|up)|account|register|otp|password)\\b", "Sign in with email or phone number", listOf("Sign in", "Verify code"), "SMS sign-in codes (Twilio or Firebase Auth)", "user profiles"),
+        Signal("\\b(pay|payment|checkout|upi|razorpay|stripe|price|buy|purchase|wallet)\\b", "Payments by card, Apple Pay and Google Pay", listOf("Checkout", "Payment history"), "Stripe (cards, Apple Pay, Google Pay; Razorpay for customers in India)", "payments"),
         Signal("\\b(subscription|subscribe|monthly plan|premium)\\b", "Subscription plans with a free tier", listOf("Plans"), "Google Play Billing and Apple In-App Purchase", "subscriptions"),
         Signal("\\b(chat|message|messaging|dm|inbox)\\b", "In-app chat between users", listOf("Conversations", "Chat"), null, "messages"),
         Signal("\\b(notif|push|alert|remind)\\w*", "Push notifications and reminders", listOf("Notifications"), "Firebase Cloud Messaging", null),
@@ -152,7 +152,7 @@ object BriefWriter {
             } else {
                 append("- Primary: people who ").append(purpose.ifBlank { "use the product day to day" }).append("\n")
             }
-            append("- Region: India first, English interface")
+            append("- Region: where your customers are, English interface")
         }
 
         val dataAuth = buildString {
@@ -164,7 +164,7 @@ object BriefWriter {
             if (users.any { it.contains("driver") }) roles += "driver"
             append("- Roles: ").append(roles.joinToString(", ")).append("\n")
             append("- Core records: ").append((listOf("user profiles") + records).distinct().joinToString(", ")).append("\n")
-            append("- Data is stored in AWS Mumbai (ap-south-1), encrypted at rest, and exportable or deletable on request")
+            append("- Data is stored on AWS in the region closest to your customers, encrypted at rest, and exportable or deletable on request")
         }
 
         val nonFunctional = listOf(
@@ -172,7 +172,7 @@ object BriefWriter {
             "Home screen loads in under 2 seconds on a 4G connection",
             "Handles 10,000 monthly active users without changes",
             "All traffic over HTTPS; personal data encrypted at rest",
-            "DPDP Act basics: consent, data export, deletion, grievance contact",
+            "Privacy basics: consent, data export, deletion and a contact for requests (GDPR and similar laws)",
             "Font scaling and screen reader labels on every screen",
         )
 
@@ -272,21 +272,38 @@ object BriefWriter {
         val integrations = integrationCount * 2
         if (integrationCount >= 3) drivers += "$integrationCount integrations"
         val backend = 6 + must
-        val credits = (apps + features + integrations + backend).coerceAtLeast(15)
-        val breakdown = listOf("Apps" to apps, "Features" to features, "Backend" to backend, "Integrations" to integrations).filter { it.second > 0 }
+        // The rubric counts person-days; contract v0.7 prices them at x0.38, at least the Micro minimum.
+        val personDays = (apps + features + integrations + backend).coerceAtLeast(15)
+        val credits = ceil(personDays * PRICE_SCALE).toInt().coerceAtLeast(MIN_CREDITS)
+        val breakdown = scaled(
+            listOf("Apps" to apps, "Features" to features, "Backend" to backend, "Integrations" to integrations).filter { it.second > 0 },
+            credits,
+        )
         val bracket = config.quote.brackets.firstOrNull { b -> credits >= b.minCredits && (b.maxCredits == null || credits <= b.maxCredits) }
-        val aiDays = ceil(credits * 0.6).toInt()
+        val aiDays = ceil(personDays * 0.6).toInt()
         val weeks = ceil(ceil(aiDays * 1.5) / 5.0).toInt()
         val days = (weeks * 5).coerceAtLeast(10)
-        val score = (credits / 40.0 * 10).roundToInt().coerceIn(1, 10)
+        val score = (personDays / 40.0 * 10).roundToInt().coerceIn(1, 10)
         val assumptions = buildList {
             add("Design follows DownWork's standard minimal interface unless you provide brand guidelines")
-            add("Third-party accounts (Razorpay, Google Maps, Apple Developer) are opened by you; we set them up")
+            add("Third-party accounts (Stripe, Google Maps, Apple Developer) are opened by you; we set them up")
             add("Product content and images are provided by you")
             if (!doc.section(SectionIds.FEATURES_NICE)?.body.orEmpty().contains("languages", true)) add("One language (English) in the first release")
             add("Nice-to-have features are not included in this quote")
         }
         return QuoteParts(credits, bracket?.id, days, score, drivers.take(4), assumptions, breakdown)
+    }
+
+    private const val PRICE_SCALE = 0.38
+    private const val MIN_CREDITS = 5
+
+    /** Shares of [total] in proportion to each part, adding up exactly (the largest absorbs the rounding). */
+    private fun scaled(parts: List<Pair<String, Int>>, total: Int): List<Pair<String, Int>> {
+        val sum = parts.sumOf { it.second }.coerceAtLeast(1)
+        val shares = parts.map { it.first to (it.second * total / sum).coerceAtLeast(1) }.toMutableList()
+        val largest = shares.indices.maxByOrNull { shares[it].second } ?: return shares
+        shares[largest] = shares[largest].first to (shares[largest].second + total - shares.sumOf { it.second }).coerceAtLeast(1)
+        return shares
     }
 
     // ----- helpers -----
@@ -308,7 +325,7 @@ object BriefWriter {
 
     private fun defaultNice(found: List<Signal>): List<String> = buildList {
         if (found.none { it.feature == "Works offline and syncs later" }) add("Works offline and syncs later")
-        if (found.none { it.feature == "Multiple languages" }) add("Hindi and regional languages")
+        if (found.none { it.feature == "Multiple languages" }) add("More languages")
         add("Share to WhatsApp")
         if (found.none { it.feature == "Reports and analytics" }) add("Usage analytics for you")
     }
