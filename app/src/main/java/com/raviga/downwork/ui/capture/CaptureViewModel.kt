@@ -26,13 +26,23 @@ class CaptureViewModel(
     private val container: AppContainer,
     initialProjectId: String,
     private val mode: String,
+    initialTab: String = DescribeWith.SPEAK,
 ) : ViewModel() {
 
     enum class Phase { CAPTURE, TRANSCRIPT, DRAFTING }
 
+    /** What the backend read from an uploaded document. */
+    data class FileRead(
+        val fileId: String,
+        val fileName: String,
+        val pageCount: Int?,
+        val truncated: Boolean,
+        val notice: String?,
+    )
+
     data class State(
         val phase: Phase = Phase.CAPTURE,
-        val tab: Int = 0,                       // 0 speak, 1 type
+        val tab: Int = 0,                       // 0 speak, 1 type, 2 upload
         val listening: Boolean = false,
         val committed: List<String> = emptyList(),
         val partial: String = "",
@@ -47,12 +57,26 @@ class CaptureViewModel(
         val needsConsent: Boolean = false,
         val done: String? = null,               // project id to open
         val usesRecorder: Boolean = false,
+        val file: FileRead? = null,
+        /** Title of the "this looks like it includes…" sheet, while it is open. */
+        val sensitive: String? = null,
+        /** Bumped to ask the review editor for focus (after "Edit" on the sensitive sheet). */
+        val focusEditor: Int = 0,
     ) {
         val hasSpeech get() = committed.isNotEmpty() || partial.isNotBlank()
         val isAppend get() = false
     }
 
-    private val _state = MutableStateFlow(State(usesRecorder = !container.dictation.isAvailable))
+    private val _state = MutableStateFlow(
+        State(
+            usesRecorder = !container.dictation.isAvailable,
+            tab = when (initialTab) {
+                DescribeWith.TYPE -> TAB_TYPE
+                DescribeWith.UPLOAD -> TAB_UPLOAD
+                else -> TAB_SPEAK
+            },
+        ),
+    )
     val state: StateFlow<State> = _state.asStateFlow()
 
     val isAppend: Boolean get() = mode == "append"
@@ -69,6 +93,8 @@ class CaptureViewModel(
     private var consumedUtterances = 0
     /** The input saved for this transcript (id, text): a retry after a failed draft must not add it twice. */
     private var savedInput: Pair<String, String>? = null
+    /** Text the client chose to keep despite the sensitive-data warning. */
+    private var acknowledgedText: String? = null
 
     fun selectTab(index: Int) {
         if (_state.value.listening) stopListening()
@@ -90,6 +116,9 @@ class CaptureViewModel(
     }
 
     companion object {
+        const val TAB_SPEAK = 0
+        const val TAB_TYPE = 1
+        const val TAB_UPLOAD = 2
         const val SAMPLE_DESCRIPTION = "I want an app for my salon in Delhi called GlowBook. Customers should be able to see the services and prices, pick a stylist, book a slot, and pay online with UPI. They should get a reminder the day before. Staff need a simple admin panel to manage the calendar, mark no-shows and see daily earnings. Later I might add loyalty points."
     }
     fun setTranscript(text: String) = _state.update { it.copy(transcript = text) }
@@ -196,10 +225,64 @@ class CaptureViewModel(
 
     // ----- Done → Transcript -----
 
+    // ----- Upload -----
+
+    /** A document picked in the system file picker. */
+    fun pickedFile(uri: android.net.Uri) {
+        val limits = container.session.config.value.limits
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            val picked = try {
+                container.files.import(uri, limits.fileMaxBytes, limits.acceptedFileTypes)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message ?: "Couldn't open that file.") }
+                return@launch
+            }
+            // The text goes through AI screening and drafting, so consent comes first.
+            if (needsConsent()) {
+                pendingAfterConsent = { readFile(picked) }
+                _state.update { it.copy(needsConsent = true) }
+                return@launch
+            }
+            readFile(picked)
+        }
+    }
+
+    private fun readFile(picked: com.raviga.downwork.data.files.FileImporter.Picked) {
+        // A new document is a new input, even if an earlier one was already saved.
+        savedInput = null
+        acknowledgedText = null
+        _state.update {
+            it.copy(
+                phase = Phase.TRANSCRIPT, tab = TAB_UPLOAD, transcribing = true, transcript = "", file = null,
+                progress = null, progressMessage = "Reading ${picked.name}", error = null,
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val id = ensureProject()
+                val result = container.projects.extract(id, picked.file, picked.name, picked.contentType) { st ->
+                    _state.update { it.copy(progress = st.progress) }
+                }
+                _state.update {
+                    it.copy(
+                        transcribing = false, progress = null, progressMessage = null,
+                        transcript = result.text,
+                        file = FileRead(result.fileId, result.fileName.ifBlank { picked.name }, result.pageCount, result.truncated, result.notice),
+                    )
+                }
+            } catch (e: Exception) {
+                picked.file.delete()
+                _state.update { it.copy(phase = Phase.CAPTURE, transcribing = false, progress = null, progressMessage = null, error = e.userLine()) }
+            }
+        }
+    }
+
     fun finishCapture() {
         if (_state.value.listening) stopListening()
         val s = _state.value
-        if (s.tab == 1) {
+        if (s.tab == TAB_UPLOAD) return
+        if (s.tab == TAB_TYPE) {
             _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = s.typed.trim()) }
             return
         }
@@ -241,8 +324,26 @@ class CaptureViewModel(
     private fun joinText(a: String, b: String): String = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 
     fun recordMore() {
-        _state.update { it.copy(phase = Phase.CAPTURE, error = null) }
+        _state.update {
+            if (it.tab == TAB_UPLOAD) it.copy(phase = Phase.CAPTURE, error = null, file = null, transcript = "")
+            else it.copy(phase = Phase.CAPTURE, error = null)
+        }
     }
+
+    // ----- Sensitive data (layer 0) -----
+
+    fun removeSensitive() {
+        _state.update { it.copy(transcript = com.raviga.downwork.data.screening.SensitiveScan.redact(it.transcript.trim()), sensitive = null) }
+        writeBrief()
+    }
+
+    fun keepSensitive() {
+        acknowledgedText = _state.value.transcript.trim()
+        _state.update { it.copy(sensitive = null) }
+        writeBrief()
+    }
+
+    fun editSensitive() = _state.update { it.copy(sensitive = null, focusEditor = it.focusEditor + 1) }
 
     // ----- Transcript → Drafting -----
 
@@ -258,21 +359,34 @@ class CaptureViewModel(
             _state.update { it.copy(error = "Say or type something about the project first.") }
             return
         }
+        if (text != acknowledgedText && text != savedInput?.second) {
+            val findings = com.raviga.downwork.data.screening.SensitiveScan.scan(text)
+            if (findings.isNotEmpty()) {
+                _state.update { it.copy(sensitive = com.raviga.downwork.data.screening.SensitiveScan.title(findings), error = null) }
+                return
+            }
+        }
         _state.update { it.copy(phase = Phase.DRAFTING, error = null, progress = null, progressMessage = "Listening back") }
         viewModelScope.launch {
             try {
                 val id = ensureProject()
-                val voice = s.tab == 0
+                val voice = s.tab == TAB_SPEAK
+                val file = s.file?.takeIf { s.tab == TAB_UPLOAD }
                 val saved = savedInput
                 when {
                     saved == null -> {
                         val project = container.projects.addInput(
                             id = id,
-                            kind = if (voice && (audioId != null || !s.usesRecorder)) "voice" else "text",
+                            kind = when {
+                                file != null -> "file"
+                                voice && (audioId != null || !s.usesRecorder) -> "voice"
+                                else -> "text"
+                            },
                             text = text,
-                            audioId = audioId,
+                            audioId = audioId.takeIf { voice },
                             durationSec = if (voice) s.elapsedSec.takeIf { it > 0 } else null,
                             languageDetected = if (voice) (languageDetected ?: Locale.getDefault().language) else null,
+                            fileId = file?.fileId,
                         )
                         val inputId = project.inputs.lastOrNull { it.text.trim() == text }?.id ?: project.inputs.lastOrNull()?.id
                         savedInput = inputId?.let { it to text }
@@ -289,7 +403,10 @@ class CaptureViewModel(
                 if (isAppend && hasDocument) container.projects.append(id, onProgress) else container.projects.generate(id, "", onProgress)
                 _state.update { it.copy(done = id) }
             } catch (e: Exception) {
-                val line = if ((e as? ApiException)?.code == ApiException.CONSENT_REQUIRED) {
+                val api = e as? ApiException
+                val legal = api?.detailStrings("missing")?.any { it == "terms" || it == "privacy" } == true
+                // Terms out of date: the app shows them (ConsentInterceptor); AI consent is asked here.
+                val line = if (api?.code == ApiException.CONSENT_REQUIRED && !legal) {
                     pendingAfterConsent = { writeBrief() }
                     _state.update { it.copy(needsConsent = true) }
                     null

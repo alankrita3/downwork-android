@@ -55,7 +55,7 @@ fun QuoteScreen(nav: NavController, projectId: String) {
     ScreenScaffold(
         topBar = { DwTopBar(onBack = { nav.popBackStack() }) },
         bottomBar = {
-            if (quote == null || state.quoting) return@ScreenScaffold
+            if (quote == null || state.quoting || state.project?.isRejected == true) return@ScreenScaffold
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 when {
@@ -86,6 +86,14 @@ fun QuoteScreen(nav: NavController, projectId: String) {
                 ProgressRule(progress = state.progress?.takeIf { it > 0f })
                 Spacer(Modifier.height(12.dp))
                 Text("A quote takes about half a minute.", style = DwType.caption, color = Ink.graphite)
+                return@Column
+            }
+            if (state.project?.isRejected == true) {
+                Spacer(Modifier.height(32.dp))
+                Text("We can't take this project on", style = DwType.heading, color = Ink.ink)
+                InlineNotice(state.error ?: state.project?.screening?.reason, color = Ink.graphite)
+                Spacer(Modifier.height(16.dp))
+                TertiaryButton("Back to the brief", onClick = { nav.popBackStack() })
                 return@Column
             }
             if (quote == null) {

@@ -58,8 +58,17 @@ object StatusCopy {
         else -> "Your project was updated."
     }
 
+    /** From `/config` legal.supportEmail; set by the container whenever config loads. */
+    @Volatile var supportEmail: String = ""
+
+    fun mistakeSuffix(): String = if (supportEmail.isBlank()) "" else " If you think this is a mistake, write to $supportEmail."
+
     /** Maps an API error code to the plain copy the design asks for. */
     fun errorLine(code: String, fallback: String?): String = when (code) {
+        "content_rejected" -> fallback ?: "We can't take this on."
+        "file_unsupported" -> fallback ?: "DownWork can read PDF, Word (.docx), text, Markdown and RTF files."
+        "file_unreadable" -> fallback ?: "Couldn't read that file. If it's a scan or locked with a password, paste the important parts instead."
+        "account_restricted" -> fallback ?: "Your account is on hold.${mistakeSuffix()}"
         "network" -> "Couldn't reach DownWork. Check your connection and try again."
         "decode" -> "DownWork sent something this version can't read. Try again later."
         "consent_required" -> "Allow AI processing before continuing."

@@ -180,7 +180,11 @@ fun PrivacyScreen(nav: NavController) {
             Hairline(Modifier.padding(horizontal = Dw.gutter))
             Column(Modifier.padding(horizontal = Dw.gutter)) {
                 Spacer(Modifier.height(8.dp))
-                Text("Recordings are deleted ${state.config.retention.audioDays} days after upload. The text stays with your project.", style = DwType.caption, color = Ink.graphite)
+                Text(
+                    "Recordings are deleted ${state.config.retention.audioDays} days after upload and documents as soon as they're read. " +
+                        "Your notes are deleted ${state.config.retention.inputsDaysAfterClose} days after a project closes; briefs stay until you delete them.",
+                    style = DwType.caption, color = Ink.graphite,
+                )
                 Spacer(Modifier.height(24.dp))
             }
             DwRow(

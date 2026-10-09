@@ -8,8 +8,9 @@ object Routes {
     const val AI_CONSENT = "ai_consent"
     const val UPGRADE = "upgrade"
 
-    const val CAPTURE = "capture/{projectId}?mode={mode}"
-    fun capture(projectId: String = "new", mode: String = "new") = "capture/$projectId?mode=$mode"
+    const val CAPTURE = "capture/{projectId}?mode={mode}&tab={tab}"
+    /** [tab]: "speak", "type" or "upload", as picked in the describe chooser. */
+    fun capture(projectId: String = "new", mode: String = "new", tab: String = "speak") = "capture/$projectId?mode=$mode&tab=$tab"
 
     const val DOCUMENT = "document/{projectId}?reveal={reveal}"
     fun document(projectId: String, reveal: Boolean = false) = "document/$projectId?reveal=$reveal"

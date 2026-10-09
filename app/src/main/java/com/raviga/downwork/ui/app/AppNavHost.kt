@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -70,6 +72,14 @@ fun AppNavHost(nav: NavHostController, pendingDeepLinkProject: String?, onDeepLi
         return
     }
 
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { app.onForeground() }
+    LaunchedEffect(state.legalDue) {
+        if (!state.legalDue) return@LaunchedEffect
+        val here = nav.currentDestination?.route
+        if (here != Routes.TERMS && here != Routes.WELCOME) nav.navigate(Routes.TERMS) { launchSingleTop = true }
+        app.legalShown()
+    }
+
     LaunchedEffect(state.restartAt) {
         val route = state.restartAt ?: return@LaunchedEffect
         nav.navigate(route) { popUpTo(0) { inclusive = true } }
@@ -101,12 +111,14 @@ fun AppNavHost(nav: NavHostController, pendingDeepLinkProject: String?, onDeepLi
             arguments = listOf(
                 navArgument("projectId") { type = NavType.StringType },
                 navArgument("mode") { type = NavType.StringType; defaultValue = "new" },
+                navArgument("tab") { type = NavType.StringType; defaultValue = "speak" },
             ),
         ) { entry ->
             CaptureScreen(
                 nav = nav,
                 projectId = entry.arguments?.getString("projectId") ?: "new",
                 mode = entry.arguments?.getString("mode") ?: "new",
+                tab = entry.arguments?.getString("tab") ?: "speak",
             )
         }
         composable(

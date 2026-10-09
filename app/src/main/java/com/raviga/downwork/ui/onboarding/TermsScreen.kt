@@ -42,6 +42,9 @@ fun TermsScreen(nav: NavController) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val legal = config.legal
+    val me by container.session.me.collectAsStateWithLifecycle()
+    // Agreed to an older version before: this is an update, and afterwards the client goes back to what they were doing.
+    val updating = me?.consent?.terms != null
 
     ScreenScaffold(
         bottomBar = {
@@ -51,7 +54,10 @@ fun TermsScreen(nav: NavController) {
                     busy = true; error = null
                     scope.launch {
                         runCatching { container.session.acceptLegal() }
-                            .onSuccess { nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } } }
+                            .onSuccess {
+                                if (nav.previousBackStackEntry != null) nav.popBackStack()
+                                else nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                            }
                             .onFailure { error = it.userLine() }
                         busy = false
                     }
@@ -61,7 +67,14 @@ fun TermsScreen(nav: NavController) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Dw.gutter)) {
             Spacer(Modifier.height(40.dp))
-            Text("Before you start", style = DwType.title, color = Ink.ink)
+            Text(if (updating) "We've updated our terms" else "Before you start", style = DwType.title, color = Ink.ink)
+            if (updating) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Our Terms and Privacy policy changed, including what DownWork can and can't build. Read them, then agree to carry on.",
+                    style = DwType.body, color = Ink.graphite,
+                )
+            }
             Spacer(Modifier.height(20.dp))
             Text(
                 "DownWork keeps what you tell us about your project, the briefs we write from it, and a record of the credits you buy and spend. We use it only to write your brief, quote it and build what you approve.",

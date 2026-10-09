@@ -76,6 +76,12 @@ interface DownWorkApi {
     @POST("projects/{id}/audio/upload-url")
     suspend fun audioUploadUrl(@Path("id") id: String, @Body body: UploadUrlRequest): UploadUrlResponse
 
+    @POST("projects/{id}/files/upload-url")
+    suspend fun fileUploadUrl(@Path("id") id: String, @Body body: FileUploadUrlRequest): FileUploadUrlResponse
+
+    @POST("projects/{id}/files/{fileId}/extract")
+    suspend fun extractFile(@Path("id") id: String, @Path("fileId") fileId: String): JobEnvelope
+
     @POST("projects/{id}/transcribe")
     suspend fun transcribe(@Path("id") id: String, @Body body: TranscribeRequest): JobEnvelope
 

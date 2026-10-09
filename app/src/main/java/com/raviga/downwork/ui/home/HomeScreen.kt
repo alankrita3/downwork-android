@@ -22,6 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -41,6 +44,7 @@ import com.raviga.downwork.ui.components.ProgressRule
 import com.raviga.downwork.ui.components.ScreenScaffold
 import com.raviga.downwork.ui.components.StatusMark
 import com.raviga.downwork.ui.nav.Routes
+import com.raviga.downwork.ui.capture.DescribeChooserSheet
 import com.raviga.downwork.ui.status.StatusCopy
 import com.raviga.downwork.ui.theme.Dw
 import com.raviga.downwork.ui.theme.DwType
@@ -56,6 +60,14 @@ fun HomeScreen(nav: NavController) {
     val error by vm.error.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val signedOut by vm.signedOut.collectAsStateWithLifecycle()
+    var chooser by remember { mutableStateOf(false) }
+    if (chooser) {
+        DescribeChooserSheet(
+            projectTitle = null,
+            onPick = { tab -> chooser = false; nav.navigate(Routes.capture(tab = tab)) },
+            onDismiss = { chooser = false },
+        )
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
 
@@ -85,7 +97,7 @@ fun HomeScreen(nav: NavController) {
         },
         bottomBar = {
             BottomBar {
-                PrimaryButton("Describe a project", icon = Icons.Outlined.Mic, onClick = { nav.navigate(Routes.capture()) })
+                PrimaryButton("Describe a project", onClick = { chooser = true })
             }
         },
     ) { padding ->

@@ -44,6 +44,8 @@ sealed interface AppEvent {
     data object ExportReady : AppEvent
     /** This phone was revoked from the client's account and now holds a fresh one; start over. */
     data object SignedOut : AppEvent
+    /** The terms or privacy policy changed; the client must agree again before content routes work. */
+    data object LegalRequired : AppEvent
 }
 
 /**
@@ -85,6 +87,7 @@ class AppContainer(private val app: Application) {
 
     val okHttp: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(AuthInterceptor { sessionStore.accessToken })
+        .addInterceptor(com.raviga.downwork.data.api.ConsentInterceptor { emit(AppEvent.LegalRequired) })
         .authenticator(ReRegisterAuthenticator(baseUrl, plainHttp, json, sessionStore, onSignedOut = ::onSignedOut))
         .apply {
             if (BuildConfig.DEBUG) addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
@@ -114,6 +117,8 @@ class AppContainer(private val app: Application) {
     val credits = CreditsRepository(api, json, cache, billing)
     val push = PushTokenRegistrar(app, prefs, session, appScope)
 
+    val files = com.raviga.downwork.data.files.FileImporter(app)
+
     val dictation = DictationEngine(app)
     val recorder = AudioRecorder(app)
 
@@ -130,6 +135,10 @@ class AppContainer(private val app: Application) {
     private fun onSignedOut() {
         _signedOut.value = true
         emit(AppEvent.SignedOut)
+    }
+
+    init {
+        appScope.launch { session.config.collect { com.raviga.downwork.ui.status.StatusCopy.supportEmail = it.legal.supportEmail } }
     }
 
     init {

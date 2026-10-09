@@ -25,6 +25,9 @@ class DocumentViewModel(private val container: AppContainer, val projectId: Stri
         val busyProgress: Float? = null,
         val sheetSection: String? = null,
         val deleted: Boolean = false,
+        /** A screening note on the input just saved ("We removed an API key from this note."). */
+        val inputNotice: String? = null,
+        val supportEmail: String = "",
     )
 
     private val _state = MutableStateFlow(State())
@@ -33,6 +36,15 @@ class DocumentViewModel(private val container: AppContainer, val projectId: Stri
     init {
         viewModelScope.launch { container.projects.project(projectId).collect { p -> _state.update { it.copy(project = p) } } }
         viewModelScope.launch { container.projects.document(projectId).collect { d -> _state.update { it.copy(document = d) } } }
+        viewModelScope.launch { container.session.config.collect { c -> _state.update { it.copy(supportEmail = c.legal.supportEmail) } } }
+        // Shown once: kept for this screen's lifetime, cleared at the source.
+        viewModelScope.launch {
+            container.projects.inputNotices.collect { notices ->
+                val notice = notices[projectId] ?: return@collect
+                _state.update { it.copy(inputNotice = notice) }
+                container.projects.consumeInputNotice(projectId)
+            }
+        }
         viewModelScope.launch {
             container.events.collect { if (it is AppEvent.ProjectUpdated && it.projectId == projectId) refresh() }
         }

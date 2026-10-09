@@ -25,6 +25,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.raviga.downwork.data.screening.SensitiveScan
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,11 +67,27 @@ import com.raviga.downwork.ui.theme.Ink
 private const val HINT = "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
 
 @Composable
-fun CaptureScreen(nav: NavController, projectId: String, mode: String) {
+fun CaptureScreen(nav: NavController, projectId: String, mode: String, tab: String = DescribeWith.SPEAK) {
     val container = LocalAppContainer.current
-    val vm: CaptureViewModel = viewModel(key = "capture_$projectId$mode") { CaptureViewModel(container, projectId, mode) }
+    val vm: CaptureViewModel = viewModel(key = "capture_$projectId$mode") { CaptureViewModel(container, projectId, mode, tab) }
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val config by container.session.config.collectAsStateWithLifecycle()
+
+    // Upload: the system picker, filtered to what the backend reads. "text/*" catches
+    // Markdown files that providers label loosely; anything unreadable is refused politely.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.pickedFile(uri)
+    }
+    val pickFile = { picker.launch((config.limits.acceptedFileTypes + "text/*").distinct().toTypedArray()) }
+    // Chosen "Upload a document" in the chooser: open the picker straight away, once.
+    var autoPicked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (tab == DescribeWith.UPLOAD && !autoPicked) {
+            autoPicked = true
+            pickFile()
+        }
+    }
 
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) vm.toggleListening()
@@ -99,16 +127,61 @@ fun CaptureScreen(nav: NavController, projectId: String, mode: String) {
 
     AnimatedContent(targetState = state.phase, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "phase") { phase ->
         when (phase) {
-            CaptureViewModel.Phase.CAPTURE -> CapturePhase(nav, vm, state, ::onMic)
+            CaptureViewModel.Phase.CAPTURE -> CapturePhase(nav, vm, state, ::onMic, pickFile, config.limits.fileMaxBytes)
             CaptureViewModel.Phase.TRANSCRIPT -> TranscriptPhase(vm, state)
             CaptureViewModel.Phase.DRAFTING -> DraftingPhase(state)
+        }
+    }
+
+    state.sensitive?.let { title ->
+        SensitiveSheet(
+            title = title,
+            onRemove = { vm.removeSensitive() },
+            onKeep = { vm.keepSensitive() },
+            onEdit = { vm.editSensitive() },
+        )
+    }
+}
+
+/** Layer-0 warning: secrets or ID numbers found in what is about to be saved. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SensitiveSheet(title: String, onRemove: () -> Unit, onKeep: () -> Unit, onEdit: () -> Unit) {
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onEdit,
+        sheetState = sheet,
+        containerColor = Ink.paper,
+        dragHandle = null,
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Dw.gutter).padding(top = 24.dp, bottom = 16.dp).navigationBarsPadding()) {
+            Text(title, style = DwType.heading, color = Ink.ink)
+            Spacer(Modifier.height(8.dp))
+            Text(SensitiveScan.MESSAGE, style = DwType.body, color = Ink.graphite)
+            Spacer(Modifier.height(24.dp))
+            PrimaryButton("Remove them", onClick = onRemove)
+            Spacer(Modifier.height(8.dp))
+            SecondaryButton("Keep as is", onClick = onKeep)
+            TertiaryButton("Edit", onClick = onEdit)
         }
     }
 }
 
 @Composable
-private fun CapturePhase(nav: NavController, vm: CaptureViewModel, state: CaptureViewModel.State, onMic: () -> Unit) {
-    val canFinish = if (state.tab == 0) (state.hasSpeech || (state.usesRecorder && state.elapsedSec > 0)) else state.typed.isNotBlank()
+private fun CapturePhase(
+    nav: NavController,
+    vm: CaptureViewModel,
+    state: CaptureViewModel.State,
+    onMic: () -> Unit,
+    onPickFile: () -> Unit,
+    fileMaxBytes: Long,
+) {
+    val canFinish = when (state.tab) {
+        CaptureViewModel.TAB_SPEAK -> state.hasSpeech || (state.usesRecorder && state.elapsedSec > 0)
+        CaptureViewModel.TAB_TYPE -> state.typed.isNotBlank()
+        else -> false
+    }
     ScreenScaffold(
         topBar = {
             DwTopBar(
@@ -118,15 +191,29 @@ private fun CapturePhase(nav: NavController, vm: CaptureViewModel, state: Captur
             )
         },
         bottomBar = {
-            if (state.tab == 1) {
-                BottomBar { PrimaryButton("Done", enabled = canFinish, onClick = { vm.finishCapture() }) }
+            when (state.tab) {
+                CaptureViewModel.TAB_TYPE -> BottomBar { PrimaryButton("Done", enabled = canFinish, onClick = { vm.finishCapture() }) }
+                CaptureViewModel.TAB_UPLOAD -> BottomBar { PrimaryButton("Choose a file", onClick = onPickFile) }
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
-            Segmented(listOf("Speak", "Type"), state.tab, onSelect = { vm.selectTab(it) })
+            Segmented(listOf("Speak", "Type", "Upload"), state.tab, onSelect = { vm.selectTab(it) })
             Spacer(Modifier.height(24.dp))
-            if (state.tab == 0) {
+            if (state.tab == CaptureViewModel.TAB_UPLOAD) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Already have a brief, a spec or notes? Upload them and we write them up.",
+                        style = DwType.dictation.copy(fontStyle = FontStyle.Italic),
+                        color = Ink.ash,
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Text("PDF, Word (.docx), text, Markdown or RTF, up to ${fileMaxBytes / 1_048_576} MB.", style = DwType.secondary, color = Ink.graphite)
+                    Spacer(Modifier.height(8.dp))
+                    Text(FILE_NOTE, style = DwType.secondary, color = Ink.graphite)
+                    InlineNotice(state.error)
+                }
+            } else if (state.tab == CaptureViewModel.TAB_SPEAK) {
                 // Dictation lands above the ink line; the newest sentence in ink, earlier ones in graphite.
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), reverseScrolling = true)) {
                     if (!state.hasSpeech && !state.listening) {
@@ -179,8 +266,20 @@ private fun CapturePhase(nav: NavController, vm: CaptureViewModel, state: Captur
 
 @Composable
 private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State) {
+    val fromFile = state.tab == CaptureViewModel.TAB_UPLOAD
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(state.focusEditor) { if (state.focusEditor > 0) runCatching { focus.requestFocus() } }
     ScreenScaffold(
-        topBar = { DwTopBar(title = "What we heard", onBack = { if (!state.transcribing) vm.recordMore() }) },
+        topBar = {
+            DwTopBar(
+                title = when (state.tab) {
+                    CaptureViewModel.TAB_UPLOAD -> "Here's what we read"
+                    CaptureViewModel.TAB_TYPE -> "What you wrote"
+                    else -> "What we heard"
+                },
+                onBack = { if (!state.transcribing) vm.recordMore() },
+            )
+        },
         bottomBar = {
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
@@ -190,7 +289,15 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                     onClick = { vm.writeBrief() },
                 )
                 Spacer(Modifier.height(8.dp))
-                SecondaryButton(if (state.tab == 0) "Record more" else "Edit what I typed", enabled = !state.transcribing, onClick = { vm.recordMore() })
+                SecondaryButton(
+                    when (state.tab) {
+                        CaptureViewModel.TAB_SPEAK -> "Record more"
+                        CaptureViewModel.TAB_UPLOAD -> "Choose another file"
+                        else -> "Edit what I typed"
+                    },
+                    enabled = !state.transcribing,
+                    onClick = { vm.recordMore() },
+                )
             }
         },
     ) { padding ->
@@ -201,14 +308,28 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                 Spacer(Modifier.height(12.dp))
                 Text(state.progressMessage ?: "Listening back", style = DwType.secondary, color = Ink.graphite)
             } else {
-                Text("Fix anything we misheard. Then we write the brief.", style = DwType.secondary, color = Ink.graphite)
+                val file = state.file
+                if (fromFile && file != null) {
+                    Text(fileSource(file), style = DwType.secondary, color = Ink.graphite)
+                    Spacer(Modifier.height(4.dp))
+                    Text(FILE_NOTE, style = DwType.caption, color = Ink.graphite)
+                    val notice = file.notice ?: if (file.truncated) "Only the first part fit. Add the rest as another note." else null
+                    if (notice != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(notice, style = DwType.caption, color = Ink.amber)
+                    }
+                } else if (state.tab == CaptureViewModel.TAB_TYPE) {
+                    Text("Check it reads right. Then we write the brief.", style = DwType.secondary, color = Ink.graphite)
+                } else {
+                    Text("Fix anything we misheard. Then we write the brief.", style = DwType.secondary, color = Ink.graphite)
+                }
                 Spacer(Modifier.height(16.dp))
                 PlainEditor(
                     value = state.transcript,
                     onValueChange = { vm.setTranscript(it) },
                     placeholder = HINT,
                     minLines = 8,
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).focusRequester(focus),
                 )
             }
         }
@@ -228,6 +349,14 @@ private fun DraftingPhase(state: CaptureViewModel.State) {
             Spacer(Modifier.weight(1f))
         }
     }
+}
+
+private const val FILE_NOTE = "Only the text is kept. The file is deleted as soon as it's read, and is never shared with the team."
+
+/** "From brief.pdf, 4 pages"; pages are left out when the backend can't count them. */
+private fun fileSource(file: CaptureViewModel.FileRead): String = buildString {
+    append("From ${file.fileName}")
+    file.pageCount?.let { append(", $it ${if (it == 1) "page" else "pages"}") }
 }
 
 private fun formatTime(sec: Int): String = "%d:%02d".format(sec / 60, sec % 60)

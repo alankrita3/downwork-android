@@ -44,7 +44,8 @@ Not exercised end to end: voice capture (the emulator has no speech recogniser; 
 - Voice on Android uses the platform speech recogniser for live dictation (words appear as you speak) and
   sends the text; devices without it record audio for the backend to transcribe. iOS does both at once.
 - 1 credit = ₹1,000; brackets micro/starter/standard/pro/enterprise; two included revision rounds; audio
-  kept 30 days; quotes valid 14 days; auto-accept 14 days after delivery. All of these live in the backend
+  kept 7 days, uploaded documents deleted once read, raw notes purged 30 days after a project closes;
+  quotes valid 14 days; auto-accept 14 days after delivery. All of these live in the backend
   `/config`; the app renders whatever it is sent.
 - Notifications permission is asked once on the home screen (Android 13+). Change in `HomeScreen.kt`.
 - Light appearance only (white background per your brief). Instrument Serif (open licence) for the

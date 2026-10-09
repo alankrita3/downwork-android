@@ -54,6 +54,10 @@ open class ApiException(
         const val RATE_LIMITED = "rate_limited"
         const val AI_UNAVAILABLE = "ai_unavailable"
         const val INTERNAL = "internal"
+        const val CONTENT_REJECTED = "content_rejected"
+        const val FILE_UNSUPPORTED = "file_unsupported"
+        const val FILE_UNREADABLE = "file_unreadable"
+        const val ACCOUNT_RESTRICTED = "account_restricted"
         /** Client-side: a job was still running when we stopped waiting for it. */
         const val JOB_TIMEOUT = "job_timeout"
 

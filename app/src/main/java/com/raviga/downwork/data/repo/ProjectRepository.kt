@@ -6,6 +6,8 @@ import com.raviga.downwork.data.api.Comment
 import com.raviga.downwork.data.api.CreateProjectRequest
 import com.raviga.downwork.data.api.Document
 import com.raviga.downwork.data.api.DownWorkApi
+import com.raviga.downwork.data.api.ExtractResult
+import com.raviga.downwork.data.api.FileUploadUrlRequest
 import com.raviga.downwork.data.api.InstructionRequest
 import com.raviga.downwork.data.api.JobRunner
 import com.raviga.downwork.data.api.JobState
@@ -25,6 +27,7 @@ import com.raviga.downwork.data.api.TranscriptResult
 import com.raviga.downwork.data.api.UploadUrlRequest
 import com.raviga.downwork.data.api.VersionSummary
 import com.raviga.downwork.data.api.apiCall
+import com.raviga.downwork.data.demo.DemoApi
 import com.raviga.downwork.data.local.CacheStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -146,11 +149,39 @@ class ProjectRepository(
     ): Pair<String, TranscriptResult> {
         onProgress(JobState(0.05f, "Uploading your recording"))
         val slot = apiCall(json) { api.audioUploadUrl(id, UploadUrlRequest(bytes = file.length(), durationSec = durationSec)) }
-        apiCall(json) { uploader.upload(file, slot) }
+        if (api !is DemoApi) apiCall(json) { uploader.upload(file, slot) }
         onProgress(JobState(0.2f, "Listening back"))
         val job = apiCall(json) { api.transcribe(id, TranscribeRequest(audioId = slot.audioId, languageHint = languageHint)) }.job
         val result = jobs.await(job, TranscriptResult.serializer(), onProgress = onProgress)
         return slot.audioId to result
+    }
+
+    /**
+     * Uploads a picked document and waits for the backend to read it. The
+     * local copy is deleted either way; the server deletes the file once read.
+     */
+    suspend fun extract(id: String, file: File, fileName: String, contentType: String, onProgress: (JobState) -> Unit = {}): ExtractResult {
+        try {
+            onProgress(JobState(0.05f, null))
+            val slot = apiCall(json) { api.fileUploadUrl(id, FileUploadUrlRequest(fileName, contentType, file.length())) }
+            if (api is DemoApi) api.demoReceiveUpload(slot.fileId, file) else apiCall(json) { uploader.upload(file, slot, contentType) }
+            onProgress(JobState(0.3f, null))
+            val job = apiCall(json) { api.extractFile(id, slot.fileId) }.job
+            return jobs.await(job, ExtractResult.serializer(), onProgress = onProgress)
+        } finally {
+            file.delete()
+        }
+    }
+
+    /** Screening notes on saved inputs ("We removed an API key from this note."), shown once. */
+    private val _inputNotices = MutableStateFlow<Map<String, String>>(emptyMap())
+    val inputNotices: StateFlow<Map<String, String>> = _inputNotices.asStateFlow()
+    fun consumeInputNotice(projectId: String) = _inputNotices.update { it - projectId }
+
+    private fun noteScreening(projectId: String, before: Project?, after: Project) {
+        val known = before?.inputs?.associate { it.id to it.text }.orEmpty()
+        val notice = after.inputs.lastOrNull { known[it.id] != it.text }?.screening?.notice
+        if (!notice.isNullOrBlank()) _inputNotices.update { it + (projectId to notice) }
     }
 
     suspend fun addInput(
@@ -160,14 +191,24 @@ class ProjectRepository(
         audioId: String? = null,
         durationSec: Int? = null,
         languageDetected: String? = null,
-    ): Project = store(
-        apiCall(json) {
-            api.addInput(id, AddInputRequest(kind = kind, text = text, audioId = audioId, languageDetected = languageDetected, durationSec = durationSec))
-        },
-    )
+        fileId: String? = null,
+    ): Project {
+        val before = _projects.value[id]
+        val project = store(
+            apiCall(json) {
+                api.addInput(id, AddInputRequest(kind = kind, text = text, audioId = audioId, languageDetected = languageDetected, durationSec = durationSec, fileId = fileId))
+            },
+        )
+        noteScreening(id, before, project)
+        return project
+    }
 
-    suspend fun editInput(id: String, inputId: String, text: String): Project =
-        store(apiCall(json) { api.patchInput(id, inputId, PatchInputRequest(text)) })
+    suspend fun editInput(id: String, inputId: String, text: String): Project {
+        val before = _projects.value[id]
+        val project = store(apiCall(json) { api.patchInput(id, inputId, PatchInputRequest(text)) })
+        noteScreening(id, before, project)
+        return project
+    }
 
     suspend fun deleteInput(id: String, inputId: String): Project =
         store(apiCall(json) { api.deleteInput(id, inputId) })

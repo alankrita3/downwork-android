@@ -24,7 +24,9 @@ Light appearance only: no `values-night`, `enableEdgeToEdge` with light system b
 | Welcome | `welcome` | `WelcomeScreen` |
 | Terms | `terms` | `TermsScreen` |
 | Home | `home` | `HomeScreen` |
-| Capture, Transcript, Drafting | `capture/{projectId}?mode=` | `CaptureScreen` (three phases in one screen so the dictation state survives the transition) |
+| Describe chooser (Speak / Type / Upload a document) | bottom sheet on Home and Document | `DescribeChooserSheet` |
+| Capture, Transcript / "Here's what we read", Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (three phases in one screen so the dictation state survives the transition; tabs Speak, Type, Upload) |
+| Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` |
 | AIConsent | `ai_consent` | `AiConsentScreen` (returns `ai_consent_granted` through the back stack entry) |
 | Document | `document/{projectId}?reveal=` | `DocumentScreen` |
 | SectionEditor, Regenerate | `section/{projectId}/{sectionId}` + bottom sheet | `SectionEditorScreen`, `RegenerateSheet` |
@@ -50,11 +52,17 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
   line that pulses opacity; the document reveal still runs but is a single fade per section.
 - **Identity.** No Keychain: the token lives in EncryptedSharedPreferences and is excluded from
   backup, so "Move to another phone" (recovery key) matters more than on iOS. A 401 triggers a
-  silent re-register with the same `installId`.
+  silent re-register with the same `installId`; if that returns a different client (this phone was
+  revoked), the app starts over and Home offers the recovery key.
+- **Uploads.** The system document picker (`OpenDocument`, filtered to `config.limits.acceptedFileTypes`
+  plus `text/*`); the file is copied to cache, sized, typed by MIME or extension, uploaded to the
+  presigned URL and deleted locally. Choosing "Upload a document" in the chooser opens the picker
+  straight away.
 - **Links.** Privacy, terms, the repo and the CloudFormation quick-create URL open in a Chrome
   Custom Tab with a paper toolbar.
 - **Notifications.** Asked once on Home (Android 13+). Push data with a `projectId` refreshes that
-  project in the foreground; in the background a notification deep-links `downwork://project/{id}`.
+  project in the foreground; in the background FCM shows the notification and its tap carries
+  `projectId` as an intent extra, which opens the project's own screen (brief, status or delivery).
 - **Fonts.** Instrument Serif is bundled rather than fetched, so the first frame has the right face
   with no Play Services dependency.
 
@@ -62,6 +70,18 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 
 - Capture hint: "Tell us what it does, who it is for, and anything it must connect to. Ramble is fine."
 - Empty home: "No projects yet. Tap the microphone and describe what you want built."
+- Chooser: "Describe your project" / "Add to <title>"; rows Speak ("Talk it through in English or
+  Hindi. We write it up."), Type ("Write or paste a description."), Upload a document ("A PDF, Word or
+  text file you already have."); footer "Recordings are deleted after N days and documents as soon as
+  they're read. Only the text is kept, for your brief." (N from `config.retention.audioDays`).
+- Upload review: "Here's what we read", "From <file>, N pages", "Only the text is kept. The file is
+  deleted as soon as it's read, and is never shared with the team.", then the server's `notice`.
+- Sensitive data: "This looks like it includes <up to two kinds, then 'and other secrets'>." /
+  "We never need passwords, keys or ID numbers to build your project, and it's safer not to share
+  them." Buttons "Remove them", "Keep as is", "Edit".
+- Refused project: "We can't take this project on", the server's reason, "Nothing has been charged.
+  If you think this is a mistake, write to <supportEmail>." Policy refusals elsewhere append the same
+  "If you think this is a mistake…" line to the server message.
 - Offline: "Couldn't reach DownWork. Check your connection and try again."
 - Timeline footer: "Projects are usually delivered well ahead of this date." (the quote screen
   shows `config.quote.timelineNote` from the backend instead).

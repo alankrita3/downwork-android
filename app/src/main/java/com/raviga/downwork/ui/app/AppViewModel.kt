@@ -27,6 +27,8 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         val upgradeRequired: Boolean = false,
         /** Set when the app must start over at this route with a cleared back stack. */
         val restartAt: String? = null,
+        /** The legal documents changed; show Terms on top of wherever the client is. */
+        val legalDue: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -35,11 +37,32 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     init {
         bootstrap()
         viewModelScope.launch {
-            container.events.collect { if (it is AppEvent.SignedOut) bootstrap(restart = true) }
+            container.events.collect {
+                when (it) {
+                    AppEvent.SignedOut -> bootstrap(restart = true)
+                    AppEvent.LegalRequired -> _state.update { s -> s.copy(legalDue = s.ready) }
+                    else -> Unit
+                }
+            }
         }
     }
 
     fun restartConsumed() = _state.update { it.copy(restartAt = null) }
+    fun legalShown() = _state.update { it.copy(legalDue = false) }
+
+    private var started = false
+
+    /** Back in the foreground: a new terms version may have shipped while the app was away. */
+    fun onForeground() {
+        if (!started) { started = true; return }
+        if (!_state.value.ready) return
+        viewModelScope.launch {
+            val session = container.session
+            runCatching { session.refreshConfig(); session.refreshMe() }.onSuccess { me ->
+                if (session.needsLegal(me, session.config.value)) _state.update { it.copy(legalDue = true) }
+            }
+        }
+    }
 
     fun bootstrap(restart: Boolean = false) {
         _state.update { it.copy(error = null) }

@@ -51,6 +51,11 @@ import com.raviga.downwork.data.api.PatchInputRequest
 import com.raviga.downwork.data.api.PatchProjectRequest
 import com.raviga.downwork.data.api.Project
 import com.raviga.downwork.data.api.ProjectInput
+import com.raviga.downwork.data.api.ExtractResult
+import com.raviga.downwork.data.api.FileUploadUrlRequest
+import com.raviga.downwork.data.api.FileUploadUrlResponse
+import com.raviga.downwork.data.api.InputScreening
+import com.raviga.downwork.data.api.ProjectScreening
 import com.raviga.downwork.data.api.ProjectStatus
 import com.raviga.downwork.data.api.ProjectSummary
 import com.raviga.downwork.data.api.ProjectsResponse
@@ -342,7 +347,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
             try {
                 job.result = job.produce()
             } catch (e: ApiException) {
-                job.error = ApiErrorBody(code = e.code, message = e.message)
+                job.error = ApiErrorBody(code = e.code, message = e.message, details = e.details)
             }
         }
         return if (job.error != null) Job(jobId, job.type, "failed", job.projectId, progress = 1.0, error = job.error)
@@ -459,6 +464,88 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         UploadUrlResponse(audioId = "au_" + UUID.randomUUID().toString().take(8), uploadUrl = DEMO_UPLOAD_URL, headers = mapOf("Content-Type" to body.contentType))
     }
 
+    // ----- document uploads (contract v0.5) -----
+
+    private class DemoUpload(val projectId: String, val fileName: String, val contentType: String) {
+        @Volatile var file: java.io.File? = null
+        @Volatile var pageCount: Int? = null
+        @Volatile var used = false
+    }
+
+    private val uploads = java.util.concurrent.ConcurrentHashMap<String, DemoUpload>()
+
+    /** Stands in for the presigned PUT: the demo reads the local copy directly. */
+    fun demoReceiveUpload(fileId: String, file: java.io.File) {
+        uploads[fileId]?.file = file
+    }
+
+    override suspend fun fileUploadUrl(id: String, body: FileUploadUrlRequest): FileUploadUrlResponse = readState { s ->
+        requireConsent(s)
+        requireEditable(requireProject(s, id))
+        if (body.contentType !in config.limits.acceptedFileTypes) {
+            throw ApiException(ApiException.FILE_UNSUPPORTED, 415, "DownWork can read PDF, Word (.docx), text, Markdown and RTF files.")
+        }
+        if (body.bytes > config.limits.fileMaxBytes) {
+            throw ApiException(ApiException.INVALID_ARGUMENT, 400, "Files can be up to ${config.limits.fileMaxBytes / 1_048_576} MB.")
+        }
+        val fileId = "fl_" + UUID.randomUUID().toString().take(8)
+        uploads[fileId] = DemoUpload(id, body.fileName, body.contentType)
+        FileUploadUrlResponse(fileId = fileId, uploadUrl = "$DEMO_UPLOAD_URL/$fileId", headers = mapOf("Content-Type" to body.contentType))
+    }
+
+    override suspend fun extractFile(id: String, fileId: String): JobEnvelope =
+        startJob("extract", id, listOf("Opening the file", "Reading the text"), 900) {
+            val up = uploads[fileId] ?: throw ApiException(ApiException.NOT_FOUND, 404, "That upload has expired. Choose the file again.")
+            val file = up.file ?: throw ApiException(ApiException.FILE_UNREADABLE, 422, "The upload didn't arrive. Try again.")
+            val read = DemoFileReader.read(file, up.contentType)
+            if (read.text.isBlank()) {
+                throw ApiException(ApiException.FILE_UNREADABLE, 422, "We couldn't find any text in that file. If it's a scan, type or paste the important parts instead.")
+            }
+            val max = config.limits.textInputMaxChars
+            val truncated = read.text.length > max
+            val clean = demoRedact(read.text.take(max))
+            up.pageCount = read.pageCount
+            val notices = listOfNotNull(
+                "Only the first part fit. Add the rest as another note.".takeIf { truncated },
+                clean.second,
+            )
+            json.encodeToJsonElement(
+                ExtractResult.serializer(),
+                ExtractResult(fileId, up.fileName, clean.first, read.pageCount, truncated, notices.joinToString(" ").ifBlank { null }),
+            )
+        }
+
+    /** The demo's stand-in for server screening: redact secrets, refuse a few obvious misuses. */
+    private fun demoRedact(text: String): Pair<String, String?> {
+        val findings = com.raviga.downwork.data.screening.SensitiveScan.scan(text)
+        if (findings.isEmpty()) return text to null
+        val what = findings.map { it.kind.phrase }.distinct().joinToString(" and ")
+        return com.raviga.downwork.data.screening.SensitiveScan.redact(text, findings) to "We removed $what from this note."
+    }
+
+    private fun demoPolicyHit(text: String): Boolean =
+        listOf("phishing", "malware", "stalkerware", "keylogger").any { it in text.lowercase() }
+
+    private fun policyRefusal(message: String) = ApiException(
+        ApiException.CONTENT_REJECTED, 422, message,
+        kotlinx.serialization.json.buildJsonObject { put("kind", kotlinx.serialization.json.JsonPrimitive("policy")) },
+    )
+
+    private fun demoScreen(text: String) {
+        val t = text.lowercase()
+        if (demoPolicyHit(t)) throw policyRefusal("This isn't something DownWork can build. It falls outside our Acceptable use policy.")
+        else if (t.trim().length < 12) {
+            throw ApiException(
+                ApiException.CONTENT_REJECTED, 422,
+                "That's too short for us to work with. Say a little more about what it should do.",
+                kotlinx.serialization.json.buildJsonObject {
+                    put("kind", kotlinx.serialization.json.JsonPrimitive("quality"))
+                    put("check", kotlinx.serialization.json.JsonPrimitive("too_short"))
+                },
+            )
+        }
+    }
+
     override suspend fun transcribe(id: String, body: TranscribeRequest): JobEnvelope =
         startJob("transcribe", id, listOf("Listening back"), 1_500) {
             json.encodeToJsonElement(
@@ -472,11 +559,24 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
         val p = requireProject(s, id)
         requireEditable(p)
         if (p.inputs.size >= config.limits.inputsPerProject) throw ApiException(ApiException.INVALID_ARGUMENT, 400, "A project can have ${config.limits.inputsPerProject} inputs.")
-        val isText = body.kind == "text"
+        demoScreen(body.text)
+        val upload = body.fileId?.let { fid ->
+            val up = uploads[fid]
+            if (up == null || up.used || up.projectId != id) throw ApiException(ApiException.INVALID_ARGUMENT, 400, "That file has already been used or has expired. Choose it again.")
+            up.used = true
+            up.file = null
+            up
+        }
+        val (cleanText, notice) = demoRedact(body.text.trim())
+        val isText = body.kind != "voice"
         val input = ProjectInput(
             id = "in_" + UUID.randomUUID().toString().take(8),
             kind = body.kind,
-            text = body.text.trim(),
+            text = cleanText,
+            fileId = body.fileId,
+            fileName = upload?.fileName,
+            pageCount = upload?.pageCount,
+            screening = InputScreening(status = "clear", notice = notice),
             audioId = if (isText) null else body.audioId,
             durationSec = if (isText) null else body.durationSec,
             languageDetected = if (isText) null else body.languageDetected,
@@ -490,7 +590,9 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
     override suspend fun patchInput(id: String, inputId: String, body: PatchInputRequest): Project = mutate { s ->
         val p = requireProject(s, id)
         requireEditable(p)
-        val next = p.copy(inputs = p.inputs.map { if (it.id == inputId) it.copy(text = body.text.trim()) else it })
+        demoScreen(body.text)
+        val (cleanText, notice) = demoRedact(body.text.trim())
+        val next = p.copy(inputs = p.inputs.map { if (it.id == inputId) it.copy(text = cleanText, screening = InputScreening(notice = notice)) else it })
         put(s, next) to next
     }
 
@@ -622,10 +724,15 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
 
     override suspend fun quote(id: String, body: Empty): JobEnvelope =
         startJob("quote", id, listOf("Sizing the work", "Checking the timeline"), 900) {
-            mutate { s ->
+            mutate<JsonElement?> { s ->
                 requireConsent(s)
                 val p = requireProject(s, id)
                 val doc = currentDoc(s, id) ?: throw ApiException(ApiException.INVALID_STATE, 409, "Write the brief first.")
+                // The document screen runs inside the quote job; a refusal freezes the project.
+                if (demoPolicyHit(doc.title + " " + doc.sections.joinToString(" ") { it.body })) {
+                    val reason = "This brief describes software that falls outside our Acceptable use policy, so the team can't build it."
+                    return@mutate put(s, p.copy(screening = ProjectScreening("rejected", reason, Time.nowIso()))) to null
+                }
                 val parts = BriefWriter.quote(doc, config)
                 val maxWeeks = parts.workingDays / 5
                 val quote = Quote(
@@ -645,7 +752,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
                 )
                 val project = p.copy(quote = quote)
                 put(s, project) to json.encodeToJsonElement(Quote.serializer(), quote)
-            }
+            } ?: throw policyRefusal("This brief describes software we can't build under our Acceptable use policy.")
         }
 
     override suspend fun latestQuote(id: String): Quote = readState { s ->
@@ -910,7 +1017,7 @@ class DemoApi(private val cache: CacheStore, private val json: Json) : DownWorkA
             ),
             revisions = RevisionsConfig(2),
             acceptance = AcceptanceConfig(14),
-            retention = RetentionConfig(30, 7, 24, 24),
+            retention = RetentionConfig(audioDays = 7, deletionGraceDays = 7, exportLinkHours = 24, jobHours = 24, fileHours = 24, inputsDaysAfterClose = 30),
             limits = LimitsConfig(),
             ai = AiConfig(listOf("OpenAI (speech to text and document drafting)")),
             delivery = DeliveryConfig("521901166785", "DownWorkDeployRole", "ap-south-1"),

@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ import com.raviga.downwork.ui.components.ScreenScaffold
 import com.raviga.downwork.ui.components.SecondaryButton
 import com.raviga.downwork.ui.components.SectionHeading
 import com.raviga.downwork.ui.components.SectionHint
+import com.raviga.downwork.ui.capture.DescribeChooserSheet
 import com.raviga.downwork.ui.nav.Routes
 import com.raviga.downwork.ui.status.StatusCopy
 import com.raviga.downwork.ui.theme.Dw
@@ -72,8 +74,11 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
     val state by vm.state.collectAsStateWithLifecycle()
     val project = state.project
     val document = state.document
-    val editable = project?.isEditable ?: false
+    val rejected = project?.isRejected == true
+    // A project screening refused is frozen: nothing to edit, quote or add.
+    val editable = (project?.isEditable ?: false) && !rejected
     var confirmDelete by remember { mutableStateOf(false) }
+    var chooser by remember { mutableStateOf(false) }
 
     // The document reveal: sections fade in one after another, 90 ms apart, once.
     var revealed by remember { mutableStateOf(if (reveal) -1 else Int.MAX_VALUE) }
@@ -97,7 +102,7 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                 onBack = { nav.popBackStack() },
                 actions = {
                     if (document != null) InlineAction("Versions", onClick = { nav.navigate(Routes.versions(projectId)) })
-                    if (project?.status == ProjectStatus.DRAFT) InlineAction("Delete", color = Ink.brick, onClick = { confirmDelete = true })
+                    if (project?.status == ProjectStatus.DRAFT && !rejected) InlineAction("Delete", color = Ink.brick, onClick = { confirmDelete = true })
                 },
             )
         },
@@ -106,18 +111,19 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
             BottomBar {
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 when {
+                    rejected -> PrimaryButton("Delete draft", onClick = { confirmDelete = true })
                     editable && document != null -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         PrimaryButton(
                             if (project.status == ProjectStatus.CHANGES_REQUESTED) "Get a new quote" else "Get a quote",
                             enabled = state.busyMessage == null,
                             onClick = { nav.navigate(Routes.quote(projectId)) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1.4f),
                         )
                         Spacer(Modifier.width(12.dp))
                         SecondaryButton(
-                            "", onClick = { nav.navigate(Routes.capture(projectId, "append")) },
+                            "Add more", onClick = { chooser = true },
                             enabled = state.busyMessage == null,
-                            modifier = Modifier.width(Dw.buttonHeight), icon = Icons.Outlined.Mic,
+                            modifier = Modifier.weight(1f), icon = Icons.Outlined.Add,
                         )
                     }
                     editable -> PrimaryButton("Write the brief", enabled = state.busyMessage == null && project.inputs.isNotEmpty(), onClick = { vm.generate() })
@@ -147,7 +153,12 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                         )
                         Spacer(Modifier.height(8.dp))
                         StatusLine(project, nav)
+                        state.inputNotice?.let { InlineNotice(it, color = Ink.graphite) }
                         Spacer(Modifier.height(Dw.sectionGap))
+                        if (rejected) {
+                            RefusedBlock(project.screening?.reason, state.supportEmail)
+                            Spacer(Modifier.height(Dw.sectionGap))
+                        }
                     }
                 }
                 if (document == null) {
@@ -156,17 +167,15 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
                             SectionHeading("Your description")
                             Spacer(Modifier.height(12.dp))
                             if (project.inputs.isEmpty()) {
-                                SectionHint("Nothing yet. Add a description by voice or text.")
+                                SectionHint("Nothing yet. Speak, type or upload a description.")
                                 Spacer(Modifier.height(16.dp))
-                                SecondaryButton("Describe it", icon = Icons.Outlined.Mic, onClick = { nav.navigate(Routes.capture(projectId)) })
+                                if (editable) SecondaryButton("Describe it", onClick = { chooser = true })
                             } else {
                                 project.inputs.forEach { input ->
-                                    BodyText(input.text)
+                                    if (input.purgedAt != null) SectionHint("Deleted ${Time.shortDate(input.purgedAt)}, after the project closed.")
+                                    else BodyText(input.text)
                                     Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        (if (input.kind == "voice") "Spoken" else "Typed") + " " + Time.relative(input.createdAt),
-                                        style = DwType.caption, color = Ink.graphite,
-                                    )
+                                    Text(inputSource(input) + " " + Time.relative(input.createdAt), style = DwType.caption, color = Ink.graphite)
                                     Spacer(Modifier.height(16.dp))
                                 }
                             }
@@ -215,6 +224,17 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
         )
     }
 
+    if (chooser && project != null) {
+        DescribeChooserSheet(
+            projectTitle = (document?.title ?: project.title).ifBlank { "this project" },
+            onPick = { tab ->
+                chooser = false
+                nav.navigate(Routes.capture(projectId, if (document != null) "append" else "new", tab))
+            },
+            onDismiss = { chooser = false },
+        )
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -226,6 +246,30 @@ fun DocumentScreen(nav: NavController, projectId: String, reveal: Boolean) {
         )
     }
 }
+
+/** Screening refused the project: say so calmly, say nothing was charged, say where to appeal. */
+@Composable
+private fun RefusedBlock(reason: String?, supportEmail: String) {
+    Column {
+        SectionHeading("We can't take this project on")
+        Spacer(Modifier.height(12.dp))
+        if (!reason.isNullOrBlank()) {
+            BodyText(reason)
+            Spacer(Modifier.height(8.dp))
+        }
+        Text(
+            "Nothing has been charged." + if (supportEmail.isNotBlank()) " If you think this is a mistake, write to $supportEmail." else "",
+            style = DwType.secondary,
+            color = Ink.graphite,
+        )
+    }
+}
+
+private fun inputSource(input: com.raviga.downwork.data.api.ProjectInput): String = when (input.kind) {
+    "voice" -> "Spoken"
+    "file" -> "From ${input.fileName ?: "a document"}"
+    else -> "Typed"
+}.let { if (input.kind == "file") "$it," else it }
 
 @Composable
 private fun EditableTitle(title: String, editable: Boolean, onSave: (String) -> Unit) {

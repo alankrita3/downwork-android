@@ -157,10 +157,14 @@ data class AcceptanceConfig(val autoAcceptDays: Int = 14)
 
 @Serializable
 data class RetentionConfig(
-    val audioDays: Int = 30,
+    val audioDays: Int = 7,
     val deletionGraceDays: Int = 7,
     val exportLinkHours: Int = 24,
     val jobHours: Int = 24,
+    /** Uploaded files are deleted once read; this is the backstop. A fileId is valid this long. */
+    val fileHours: Int = 24,
+    /** Raw inputs (transcripts, typed notes, file text) are purged this long after a project closes. */
+    val inputsDaysAfterClose: Int = 30,
 )
 
 @Serializable
@@ -170,7 +174,36 @@ data class LimitsConfig(
     val inputsPerProject: Int = 10,
     val textInputMaxChars: Int = 20_000,
     val acceptedMimeTypes: List<String> = listOf("audio/m4a", "audio/mp4"),
+    val fileMaxBytes: Long = 10_485_760,
+    val fileMaxPages: Int = 60,
+    /** MIME types; sent as `contentType` on files/upload-url. */
+    val acceptedFileTypes: List<String> = FileTypes.DEFAULT,
 )
+
+/** Document uploads (contract v0.5): MIME types and the extensions that map to them. */
+object FileTypes {
+    const val PDF = "application/pdf"
+    const val DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    const val TXT = "text/plain"
+    const val MD = "text/markdown"
+    const val RTF = "application/rtf"
+    val DEFAULT = listOf(PDF, DOCX, TXT, MD, RTF)
+
+    private val byExtension = mapOf(
+        "pdf" to PDF, "docx" to DOCX, "txt" to TXT, "text" to TXT,
+        "md" to MD, "markdown" to MD, "rtf" to RTF,
+    )
+
+    /** The MIME type to declare: the provider's if accepted, else from the extension. Null if unsupported. */
+    fun resolve(fileName: String, providerType: String?, accepted: List<String>): String? {
+        val fromProvider = providerType?.substringBefore(';')?.trim()?.lowercase()?.let {
+            if (it == "text/rtf") RTF else if (it == "text/x-markdown") MD else it
+        }
+        if (fromProvider != null && fromProvider in accepted) return fromProvider
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return byExtension[ext]?.takeIf { it in accepted }
+    }
+}
 
 @Serializable
 data class AiConfig(val providers: List<String> = emptyList())
@@ -276,8 +309,12 @@ data class Project(
     val revisions: Revisions = Revisions(),
     val unreadComments: Int = 0,
     val history: List<HistoryEntry> = emptyList(),
+    val screening: ProjectScreening? = null,
 ) {
     val isEditable: Boolean get() = ProjectStatus.isEditable(status)
+
+    /** Screening refused the project: the brief is frozen and only deletion is offered. */
+    val isRejected: Boolean get() = screening?.status == "rejected"
 
     /** The quote cannot be submitted against: missing, stale, expired or used. */
     val quoteIsStale: Boolean
@@ -314,13 +351,34 @@ data class HistoryEntry(
 @Serializable
 data class ProjectInput(
     val id: String,
-    val kind: String,              // voice | text
+    val kind: String = "text",     // voice | text | file; anything newer reads as text
     val text: String = "",
     val audioId: String? = null,
     val durationSec: Int? = null,
     val languageDetected: String? = null,
     val audioExpiresAt: String? = null,
+    val fileId: String? = null,
+    val fileName: String? = null,
+    val pageCount: Int? = null,
+    val screening: InputScreening? = null,
+    /** Set once the raw text was purged after the project closed; `text` is empty then. */
+    val purgedAt: String? = null,
     val createdAt: String? = null,
+)
+
+/** clear | review | rejected. Only rejected changes what the client sees. */
+@Serializable
+data class ProjectScreening(
+    val status: String = "clear",
+    val reason: String? = null,
+    val checkedAt: String? = null,
+)
+
+/** clear | review; [notice] is shown once after saving (e.g. a removed API key). */
+@Serializable
+data class InputScreening(
+    val status: String = "clear",
+    val notice: String? = null,
 )
 
 @Serializable
@@ -487,6 +545,33 @@ data class UploadUrlResponse(
 )
 
 @Serializable
+data class FileUploadUrlRequest(
+    val fileName: String,
+    val contentType: String,
+    val bytes: Long,
+)
+
+@Serializable
+data class FileUploadUrlResponse(
+    val fileId: String,
+    val uploadUrl: String,
+    val method: String = "PUT",
+    val headers: Map<String, String> = emptyMap(),
+    val expiresAt: String? = null,
+)
+
+/** Result of the `extract` job. [pageCount] is null for txt/md/rtf and some docx. */
+@Serializable
+data class ExtractResult(
+    val fileId: String,
+    val fileName: String = "",
+    val text: String = "",
+    val pageCount: Int? = null,
+    val truncated: Boolean = false,
+    val notice: String? = null,
+)
+
+@Serializable
 data class TranscribeRequest(val audioId: String, val languageHint: String? = null)
 
 @Serializable
@@ -503,6 +588,7 @@ data class AddInputRequest(
     val audioId: String? = null,
     val languageDetected: String? = null,
     val durationSec: Int? = null,
+    val fileId: String? = null,
 )
 
 @Serializable

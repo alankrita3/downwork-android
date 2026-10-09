@@ -59,7 +59,7 @@ class QuoteViewModel(private val container: AppContainer, val projectId: String)
         viewModelScope.launch {
             container.projects.project(projectId).collect { p ->
                 _state.update { it.copy(project = p) }
-                if (p != null && p.quoteIsStale && p.isEditable && !quotedOnce) requestQuote()
+                if (p != null && p.quoteIsStale && p.isEditable && !p.isRejected && !quotedOnce) requestQuote()
             }
         }
         viewModelScope.launch {
@@ -94,7 +94,11 @@ class QuoteViewModel(private val container: AppContainer, val projectId: String)
                 container.projects.quote(projectId) { st ->
                     _state.update { it.copy(progressMessage = st.message ?: it.progressMessage, progress = st.progress) }
                 }
-            }.onFailure { e -> _state.update { it.copy(error = e.userLine()) } }
+            }.onFailure { e ->
+                // A refused brief freezes the project; reload it so every screen shows that.
+                if ((e as? ApiException)?.code == ApiException.CONTENT_REJECTED) runCatching { container.projects.refresh(projectId) }
+                _state.update { it.copy(error = e.userLine()) }
+            }
             _state.update { it.copy(quoting = false, progressMessage = null, progress = null) }
         }
     }

@@ -71,9 +71,13 @@ fun AiConsentScreen(nav: NavController) {
             Spacer(Modifier.height(16.dp))
             Text("Before we send this to AI", style = DwType.title, color = Ink.ink)
             Spacer(Modifier.height(24.dp))
-            Block("What is sent", "Your recording and the words in it, plus anything you type about the project.")
+            Block("What is sent", "Your recordings, documents you upload and the words in them, plus anything you type about the project.")
             Block("To whom", providers.joinToString(", ") + ". They process it to write your brief and do not keep it to train models.")
-            Block("How long", "Audio is deleted after ${config.retention.audioDays} days. The text stays with your project until you delete it.")
+            Block(
+                "How long",
+                "Recordings are deleted after ${config.retention.audioDays} days and documents as soon as they're read. " +
+                    "Your notes are deleted ${config.retention.inputsDaysAfterClose} days after the project closes; the brief stays until you delete it.",
+            )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Allow AI processing", style = DwType.body, color = Ink.ink, modifier = Modifier.weight(1f))
