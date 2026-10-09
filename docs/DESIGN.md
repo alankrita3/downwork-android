@@ -25,8 +25,8 @@ Light appearance only: no `values-night`, `enableEdgeToEdge` with light system b
 | Terms | `terms` | `TermsScreen` |
 | Home | `home` | `HomeScreen` |
 | Describe chooser (Speak / Type / Upload a document) | bottom sheet on Home and Document | `DescribeChooserSheet` |
-| Capture, Transcript / "Here's what we read", Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (three phases in one screen so the dictation state survives the transition; tabs Speak, Type, Upload) |
-| Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` |
+| Capture, Transcript / "Here's what we read", Choices, Drafting | `capture/{projectId}?mode=&tab=` | `CaptureScreen` (phases in one screen so the dictation state survives the transition; tabs Speak, Type, Upload) |
+| Sensitive-data check | bottom sheet on the review step | `SensitiveSheet` in `CaptureScreen`, patterns in `data/screening/SensitiveScan.kt` (the server's L1 list: `DownWork Backend/src/downwork/screening/secrets.py`) |
 | AIConsent | `ai_consent` | `AiConsentScreen` (returns `ai_consent_granted` through the back stack entry) |
 | Document | `document/{projectId}?reveal=` | `DocumentScreen` |
 | SectionEditor, Regenerate | `section/{projectId}/{sectionId}` + bottom sheet | `SectionEditorScreen`, `RegenerateSheet` |
@@ -84,6 +84,12 @@ Status vocabulary (mark colours, row lines, detail titles, push lines) is in `ui
 - Review titles and hints: voice "Here's what we heard" / "Tap to fix anything that was misheard.";
   typed "Here's your description" / "Tap to edit before we write the brief."; upload "Here's what we
   read" / "From <file>, N pages" / the server's `notice` / "Tap to fix anything before we write the brief."
+- One note per way of describing (as iOS, 0d5dabd). Review's second button: voice "Record more",
+  typed "Edit what I typed" (both continue the same note in the same mode; the tabs give way to
+  "Recording more" / "Adding more", and back returns to the review); document "Add more" (runs the
+  sensitive-data check, saves the document as its own note, then shows the three choices with
+  "Saved <file> to your draft." or "Saved N notes to your draft." and "Write the brief now").
+  Back from a document review picks another file.
 - Sensitive data: "This looks like it includes <up to two kinds, then 'and other secrets'>." /
   "We never need passwords, keys or ID numbers to build your project, and it's safer not to share
   them." Buttons "Remove them", "Keep as is", "Edit".

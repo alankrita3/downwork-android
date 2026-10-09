@@ -19,10 +19,14 @@ class SensitiveScanTest {
     @Test fun apiKeysAndTokens() {
         assertEquals(listOf(Kind.API_KEY), kinds("aws key AKIAIOSFODNN7EXAMPLE ok"))
         assertEquals(listOf(Kind.API_KEY), kinds("token ghp_" + "a".repeat(36)))
-        assertEquals(listOf(Kind.API_KEY), kinds("use sk-proj-abcdefghijklmnopqrstuvwx"))
+        assertEquals(listOf(Kind.API_KEY), kinds("use sk-proj-abcdefghij1234567890uvwx"))
         assertEquals(listOf(Kind.API_KEY), kinds("stripe sk_live_" + "4eC39HqLyjWDarjtT1zdp7dc"))
         assertEquals(listOf(Kind.API_KEY), kinds("slack xoxb-1234567890-abcdef"))
         assertEquals(listOf(Kind.API_KEY), kinds("maps AIza" + "SyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY"))
+        // Razorpay, same cases as the iOS tests.
+        assertEquals(listOf(Kind.API_KEY), kinds("My Razorpay key is rzp_live_" + "9aB3xQ7mK2pL5vN8"))
+        assertEquals(listOf(Kind.API_KEY), kinds("Test with rzp_test_" + "1DP5mmOlF5G5ag."))
+        assertEquals(emptyList<Kind>(), kinds("Payments through Razorpay, rzp_live_ keys come later"))
     }
 
     @Test fun privateKeyBlock() {
@@ -37,6 +41,58 @@ class SensitiveScanTest {
         assertEquals(listOf(Kind.PASSWORD), kinds(text))
         assertEquals("Admin login is admin, password: [removed] and that's it", SensitiveScan.redact(text))
         assertEquals(emptyList<Kind>(), kinds("users reset their password by email"))
+    }
+
+    /** The server's L1 cases (DownWork Backend tests/test_screening.py): the phone flags the same. */
+    @Test fun serverCasesAreFlaggedAsTheSameKind() {
+        val cases = listOf(
+            "key AKIAIOSFODNN7EXAMPLE here" to Kind.API_KEY,
+            "temp ASIAIOSFODNN7EXAMPLE here" to Kind.API_KEY,
+            "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" to Kind.API_KEY,
+            "token ghp_" + "a".repeat(36) to Kind.API_KEY,
+            "github_pat_" + "B".repeat(82) to Kind.API_KEY,
+            "openai sk-proj-Ab12Cd34Ef56Gh78Ij90Kl12Mn34" to Kind.API_KEY,
+            "legacy sk-" + "a1".repeat(24) to Kind.API_KEY,
+            "stripe sk_live_" + "4eC39HqLyjWDarjtT1zdp7dc" to Kind.API_KEY,
+            "restricted rk_live_" + "4eC39HqLyjWDarjtT1zdp7dc" to Kind.API_KEY,
+            "razorpay rzp_live_" + "9aB3xQ7mK2pL5vN8 for payments" to Kind.API_KEY,
+            "test rzp_test_" + "1DP5mmOlF5G5ag" to Kind.API_KEY,
+            "Key Secret: thisisnotarealsecret1234" to Kind.PASSWORD,
+            "client_secret=Ab3dEf9hIjKlMn" to Kind.PASSWORD,
+            "secret_key = 9f8e7d6c5b4a" to Kind.PASSWORD,
+            "slack xoxb-" + "1234567890-abcdefghij" to Kind.API_KEY,
+            "maps AIza" + "SyA1234567890abcdefghijklmnopqrstuv" to Kind.API_KEY,
+            "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----" to Kind.PRIVATE_KEY,
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ" to Kind.PRIVATE_KEY,
+            "password: Summer@2024" to Kind.PASSWORD,
+            "pwd = hunter22" to Kind.PASSWORD,
+            "api key: Zx9QwErTy" to Kind.PASSWORD,
+            "UPI PIN = 4321" to Kind.PASSWORD,
+            "ATM pin: 9876" to Kind.PASSWORD,
+            "card 4111 1111 1111 1111 ok" to Kind.CARD,
+            "card 5500-0000-0000-0004 ok" to Kind.CARD,
+            "aadhaar 2341 2341 2346 ok" to Kind.AADHAAR,
+            "aadhaar 234123412346 ok" to Kind.AADHAAR,
+            "pan ABCPE1234F ok" to Kind.PAN,
+        )
+        for ((text, kind) in cases) {
+            assertEquals(text, listOf(kind), kinds(text))
+            assertTrue(text, SensitiveScan.redact(text).contains(SensitiveScan.REPLACEMENT))
+        }
+    }
+
+    @Test fun serverFalsePositivesAreLeftAlone() {
+        listOf(
+            "call +91 98765 43210 or 9876543210 or 919876543210",
+            "launch on 2026-11-15, budget 25,00,000",
+            "order 2341 2341 2345 and card 4111 1111 1111 1112",
+            "password: minimum 8 characters, forgot password flow",
+            "PIN: 560001 is the office pincode",
+            "we use scikit-learn and sk-learn style pipelines for the recommendation engine",
+            "ABCDE12345 is a product code, ABCDE1234 too",
+            "token: 5 per day",
+            "password: [removed]",
+        ).forEach { assertEquals(it, emptyList<Kind>(), kinds(it)) }
     }
 
     @Test fun cardNumbersNeedLuhn() {

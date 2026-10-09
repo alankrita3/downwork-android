@@ -44,43 +44,49 @@ fun DescribeChooserSheet(projectTitle: String?, onPick: (String) -> Unit, onDism
         dragHandle = null,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp).navigationBarsPadding()) {
-            Text(
-                if (projectTitle == null) "Describe your project" else "Add to ${projectTitle.ifBlank { "this project" }}",
-                style = DwType.title,
-                color = Ink.ink,
-                modifier = Modifier.padding(horizontal = Dw.gutter),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                if (projectTitle == null) "Whichever is easiest. You can mix them, and edit everything after." else "Add more detail, whichever way is easiest.",
-                style = DwType.caption,
-                color = Ink.graphite,
-                modifier = Modifier.padding(horizontal = Dw.gutter),
-            )
-            Spacer(Modifier.height(12.dp))
-            DwRow(
-                title = "Speak",
-                subtitle = "Talk it through in English or Hindi. We write it up.",
-                onClick = { onPick(DescribeWith.SPEAK) },
-            )
-            DwRow(
-                title = "Type",
-                subtitle = "Write or paste a description.",
-                onClick = { onPick(DescribeWith.TYPE) },
-            )
-            DwRow(
-                title = "Upload a document",
-                subtitle = "A PDF, Word or text file you already have.",
-                onClick = { onPick(DescribeWith.UPLOAD) },
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Your recordings and files never leave your phone. Drafts are kept only on this phone.",
-                style = DwType.caption,
-                color = Ink.graphite,
-                modifier = Modifier.padding(horizontal = Dw.gutter),
-            )
-        }
+        DescribeChoices(projectTitle, onPick, Modifier.padding(top = 24.dp, bottom = 16.dp).navigationBarsPadding())
+    }
+}
+
+/** The three choices; also shown on Capture after a document is saved as a note. */
+@Composable
+fun DescribeChoices(projectTitle: String?, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        Text(
+            if (projectTitle == null) "Describe your project" else "Add to ${projectTitle.ifBlank { "this project" }}",
+            style = DwType.title,
+            color = Ink.ink,
+            modifier = Modifier.padding(horizontal = Dw.gutter),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (projectTitle == null) "Whichever is easiest. You can mix them, and edit everything after." else "Add more detail, whichever way is easiest.",
+            style = DwType.caption,
+            color = Ink.graphite,
+            modifier = Modifier.padding(horizontal = Dw.gutter),
+        )
+        Spacer(Modifier.height(12.dp))
+        DwRow(
+            title = "Speak",
+            subtitle = "Talk it through in English or Hindi. We write it up.",
+            onClick = { onPick(DescribeWith.SPEAK) },
+        )
+        DwRow(
+            title = "Type",
+            subtitle = "Write or paste a description.",
+            onClick = { onPick(DescribeWith.TYPE) },
+        )
+        DwRow(
+            title = "Upload a document",
+            subtitle = "A PDF, Word or text file you already have.",
+            onClick = { onPick(DescribeWith.UPLOAD) },
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Your recordings and files never leave your phone. Drafts are kept only on this phone.",
+            style = DwType.caption,
+            color = Ink.graphite,
+            modifier = Modifier.padding(horizontal = Dw.gutter),
+        )
     }
 }

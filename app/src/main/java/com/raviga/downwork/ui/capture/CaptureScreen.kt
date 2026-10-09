@@ -121,14 +121,20 @@ fun CaptureScreen(nav: NavController, projectId: String, mode: String, tab: Stri
         }
     }
 
-    BackHandler(enabled = state.phase != CaptureViewModel.Phase.CAPTURE) {
-        if (state.phase == CaptureViewModel.Phase.TRANSCRIPT && !state.reading) vm.recordMore()
+    val captureBack = captureBack(vm, state)
+    BackHandler(enabled = state.phase == CaptureViewModel.Phase.TRANSCRIPT || state.phase == CaptureViewModel.Phase.DRAFTING || captureBack != null) {
+        when (state.phase) {
+            CaptureViewModel.Phase.TRANSCRIPT -> if (!state.reading && !state.saving) vm.recordMore()
+            CaptureViewModel.Phase.CAPTURE -> captureBack?.invoke()
+            else -> Unit
+        }
     }
 
     AnimatedContent(targetState = state.phase, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "phase") { phase ->
         when (phase) {
             CaptureViewModel.Phase.CAPTURE -> CapturePhase(nav, vm, state, ::onMic, pickFile, config.limits.fileMaxBytes)
             CaptureViewModel.Phase.TRANSCRIPT -> TranscriptPhase(vm, state)
+            CaptureViewModel.Phase.CHOOSE -> ChoosePhase(nav, vm, state, onPickFile = pickFile)
             CaptureViewModel.Phase.DRAFTING -> DraftingPhase(state)
         }
     }
@@ -141,6 +147,17 @@ fun CaptureScreen(nav: NavController, projectId: String, mode: String, tab: Stri
             onEdit = { vm.editSensitive() },
         )
     }
+}
+
+/**
+ * Where back goes from capture when it shouldn't leave the screen: continuing a note returns to
+ * its review; a new part after a saved document returns to the choices. Null leaves.
+ */
+private fun captureBack(vm: CaptureViewModel, state: CaptureViewModel.State): (() -> Unit)? = when {
+    state.phase != CaptureViewModel.Phase.CAPTURE -> null
+    state.continuing -> { { if (state.listening) vm.stopListening(); vm.finishCapture() } }
+    state.savedNotes > 0 -> { { vm.backToChoices() } }
+    else -> null
 }
 
 /** Layer-0 warning: secrets or ID numbers found in what is about to be saved. */
@@ -186,7 +203,7 @@ private fun CapturePhase(
         topBar = {
             DwTopBar(
                 title = if (vm.isAppend) "Add more" else null,
-                onBack = { if (state.listening) vm.stopListening(); nav.popBackStack() },
+                onBack = captureBack(vm, state) ?: { if (state.listening) vm.stopListening(); nav.popBackStack(); Unit },
                 actions = { if (canFinish && !state.listening) com.raviga.downwork.ui.components.InlineAction("Done", onClick = { vm.finishCapture() }) },
             )
         },
@@ -198,7 +215,12 @@ private fun CapturePhase(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Dw.gutter)) {
-            Segmented(listOf("Speak", "Type", "Upload"), state.tab, onSelect = { vm.selectTab(it) })
+            // Continuing a note stays in its mode, so the tabs make way for what is happening.
+            if (state.continuing) {
+                Text(if (state.tab == CaptureViewModel.TAB_SPEAK) "Recording more" else "Adding more", style = DwType.body, color = Ink.ink)
+            } else {
+                Segmented(listOf("Speak", "Type", "Upload"), state.tab, onSelect = { vm.selectTab(it) })
+            }
             Spacer(Modifier.height(24.dp))
             if (state.tab == CaptureViewModel.TAB_UPLOAD) {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -221,7 +243,7 @@ private fun CapturePhase(
                         val message = (speech as? CaptureViewModel.Speech.Unavailable)?.message ?: (speech as CaptureViewModel.Speech.NotYet).message
                         Text(message, style = DwType.dictation.copy(fontStyle = FontStyle.Italic), color = Ink.graphite)
                         Spacer(Modifier.height(16.dp))
-                        Row {
+                        if (!state.continuing) Row {
                             com.raviga.downwork.ui.components.InlineAction("Type instead", onClick = { vm.selectTab(CaptureViewModel.TAB_TYPE) })
                             com.raviga.downwork.ui.components.InlineAction("Upload a document", onClick = { vm.selectTab(CaptureViewModel.TAB_UPLOAD) })
                         }
@@ -256,7 +278,7 @@ private fun CapturePhase(
                 Spacer(Modifier.height(8.dp))
                 when {
                     canFinish && !state.listening -> TertiaryButton("Done, show me the text", onClick = { vm.finishCapture() })
-                    vm.offersSample && !state.listening -> TertiaryButton("Use a sample description", onClick = { vm.useSample() }, color = Ink.graphite)
+                    vm.offersSample && !state.listening && !state.continuing -> TertiaryButton("Use a sample description", onClick = { vm.useSample() }, color = Ink.graphite)
                     else -> Spacer(Modifier.height(Dw.buttonHeight))
                 }
                 Spacer(Modifier.height(16.dp))
@@ -288,7 +310,7 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                     CaptureViewModel.TAB_TYPE -> "Here's your description"
                     else -> "Here's what we heard"
                 },
-                onBack = { if (!state.reading) vm.recordMore() },
+                onBack = { if (!state.reading && !state.saving) vm.recordMore() },
             )
         },
         bottomBar = {
@@ -296,18 +318,20 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
                 InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
                 PrimaryButton(
                     if (vm.isAppend) "Looks right, add it to the brief" else "Looks right, write the brief",
-                    enabled = !state.reading && state.transcript.isNotBlank(),
+                    enabled = !state.reading && !state.saving && state.transcript.isNotBlank(),
                     onClick = { vm.writeBrief() },
                 )
                 Spacer(Modifier.height(8.dp))
+                // A document is its own note: "Add more" saves it, then any way adds the next part.
+                // Back from a document picks another file instead.
                 SecondaryButton(
                     when (state.tab) {
                         CaptureViewModel.TAB_SPEAK -> "Record more"
-                        CaptureViewModel.TAB_UPLOAD -> "Choose another file"
+                        CaptureViewModel.TAB_UPLOAD -> if (state.saving) "Saving" else "Add more"
                         else -> "Edit what I typed"
                     },
-                    enabled = !state.reading,
-                    onClick = { vm.recordMore() },
+                    enabled = !state.reading && !state.saving && (!fromFile || state.transcript.isNotBlank()),
+                    onClick = { if (fromFile) vm.addMore() else vm.recordMore() },
                 )
             }
         },
@@ -347,6 +371,42 @@ private fun TranscriptPhase(vm: CaptureViewModel, state: CaptureViewModel.State)
             }
         }
     }
+}
+
+/** After a document was saved as a note: add the next part any way, or write the brief now. */
+@Composable
+private fun ChoosePhase(nav: NavController, vm: CaptureViewModel, state: CaptureViewModel.State, onPickFile: () -> Unit) {
+    val title = remember { vm.appendTitle() }
+    ScreenScaffold(
+        topBar = { DwTopBar(title = if (vm.isAppend) "Add more" else null, onBack = { nav.popBackStack() }) },
+        bottomBar = {
+            BottomBar {
+                InlineNotice(state.error, Modifier.padding(bottom = 8.dp))
+                Text(savedLine(state), style = DwType.caption, color = Ink.graphite)
+                Spacer(Modifier.height(8.dp))
+                SecondaryButton(if (vm.isAppend) "Add it to the brief now" else "Write the brief now", onClick = { vm.writeSavedNotes() })
+            }
+        },
+    ) { padding ->
+        DescribeChoices(
+            projectTitle = title,
+            onPick = { picked ->
+                when (picked) {
+                    DescribeWith.TYPE -> vm.choose(CaptureViewModel.TAB_TYPE)
+                    DescribeWith.UPLOAD -> { vm.choose(CaptureViewModel.TAB_UPLOAD); onPickFile() }
+                    else -> vm.choose(CaptureViewModel.TAB_SPEAK)
+                }
+            },
+            modifier = Modifier.padding(padding).verticalScroll(rememberScrollState()),
+        )
+    }
+}
+
+/** "Saved brief.pdf to your draft." or, after several, "Saved 2 notes to your draft." */
+private fun savedLine(state: CaptureViewModel.State): String = when {
+    state.savedNotes > 1 -> "Saved ${state.savedNotes} notes to your draft."
+    state.lastSavedName != null -> "Saved ${state.lastSavedName} to your draft."
+    else -> "Saved to your draft."
 }
 
 @Composable

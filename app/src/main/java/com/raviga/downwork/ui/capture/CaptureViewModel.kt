@@ -23,6 +23,11 @@ import kotlinx.coroutines.launch
  * Capture → review → Drafting, local-first (contract v0.6). Speech is
  * recognised on the phone, documents are read on the phone, and the notes are
  * saved in the local draft. Only their text goes to the AI to write the brief.
+ *
+ * Each note is one way of describing: "Record more" and "Edit what I typed"
+ * continue the same note in the same mode, and "Add more" on a document saves
+ * it as its own note before the next part (as on iOS), so a file and a
+ * recording never merge into one voice note.
  */
 class CaptureViewModel(
     private val container: AppContainer,
@@ -31,7 +36,7 @@ class CaptureViewModel(
     initialTab: String = DescribeWith.SPEAK,
 ) : ViewModel() {
 
-    enum class Phase { CAPTURE, TRANSCRIPT, DRAFTING }
+    enum class Phase { CAPTURE, TRANSCRIPT, CHOOSE, DRAFTING }
 
     /** What was read from a document on this phone. */
     data class FileRead(
@@ -71,6 +76,12 @@ class CaptureViewModel(
         val sensitive: String? = null,
         /** Bumped to ask the review editor for focus (after "Edit" on the sensitive sheet). */
         val focusEditor: Int = 0,
+        /** Continuing the note under review in the same mode; the tabs are hidden meanwhile. */
+        val continuing: Boolean = false,
+        /** Notes saved so far in this visit (documents saved before adding more), shown on the choices. */
+        val savedNotes: Int = 0,
+        val lastSavedName: String? = null,
+        val saving: Boolean = false,
     ) {
         val hasSpeech get() = committed.isNotEmpty() || partial.isNotBlank()
     }
@@ -98,6 +109,8 @@ class CaptureViewModel(
     private var savedInput: Pair<String, String>? = null
     /** Text the client chose to keep despite the sensitive-data warning. */
     private var acknowledgedText: String? = null
+    /** The sensitive-data sheet is open for "Add more" on a document: carry on saving, not writing. */
+    private var addingMore = false
 
     init { checkSpeech() }
 
@@ -114,6 +127,7 @@ class CaptureViewModel(
     }
 
     fun selectTab(index: Int) {
+        if (_state.value.continuing) return
         if (_state.value.listening) stopListening()
         _state.update { it.copy(tab = index, error = null) }
     }
@@ -247,21 +261,91 @@ class CaptureViewModel(
         val s = _state.value
         when (s.tab) {
             TAB_UPLOAD -> return
-            TAB_TYPE -> _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = s.typed.trim()) }
+            TAB_TYPE -> _state.update { it.copy(phase = Phase.TRANSCRIPT, continuing = false, transcript = s.typed.trim()) }
             else -> {
                 val fresh = s.committed.drop(consumedUtterances).joinToString(" ")
                 consumedUtterances = s.committed.size
-                _state.update { it.copy(phase = Phase.TRANSCRIPT, transcript = joinText(it.transcript, fresh)) }
+                _state.update { it.copy(phase = Phase.TRANSCRIPT, continuing = false, transcript = joinText(it.transcript, fresh)) }
             }
         }
     }
 
     private fun joinText(a: String, b: String): String = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 
+    /**
+     * Back from review. A recording or a typed description continues in the same mode (new
+     * speech joins the end; the typed editor gets the reviewed text, edits included). A
+     * document goes back to the picker; "Add more" is how it is kept.
+     */
     fun recordMore() {
         _state.update {
-            if (it.tab == TAB_UPLOAD) it.copy(phase = Phase.CAPTURE, error = null, file = null, transcript = "")
-            else it.copy(phase = Phase.CAPTURE, error = null)
+            when (it.tab) {
+                TAB_UPLOAD -> it.copy(phase = Phase.CAPTURE, error = null, file = null, transcript = "")
+                TAB_TYPE -> it.copy(phase = Phase.CAPTURE, error = null, typed = it.transcript, continuing = true)
+                else -> it.copy(phase = Phase.CAPTURE, error = null, continuing = true)
+            }
+        }
+    }
+
+    /** "Add more" on a document: save it as its own note, then offer all three ways for the next part. */
+    fun addMore() {
+        val s = _state.value
+        val text = s.transcript.trim()
+        if (s.tab != TAB_UPLOAD || s.reading || s.saving || text.isBlank()) return
+        addingMore = true
+        if (flagged(text)) return
+        _state.update { it.copy(saving = true, error = null) }
+        viewModelScope.launch {
+            val drafts = container.drafts
+            try {
+                val id = draftId ?: drafts.create().id.also { draftId = it }
+                saveNote(id, s, text)
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false, error = e.userLine()) }
+                return@launch
+            }
+            // The next part is a new note.
+            savedInput = null
+            acknowledgedText = null
+            _state.update {
+                it.copy(
+                    phase = Phase.CHOOSE, saving = false, transcript = "", file = null,
+                    savedNotes = it.savedNotes + 1, lastSavedName = s.file?.fileName ?: it.lastSavedName,
+                )
+            }
+        }
+    }
+
+    /** The brief's title when adding to one, for the choices' heading; null for a new project. */
+    fun appendTitle(): String? = if (isAppend) draftId?.let { container.drafts.get(it)?.displayTitle } ?: "" else null
+
+    /** A way to add the next part, picked on the choices shown after a document was saved. */
+    fun choose(tab: Int) = _state.update { it.copy(phase = Phase.CAPTURE, tab = tab, error = null) }
+
+    /** Back to the choices from a new part that hasn't been reviewed yet. */
+    fun backToChoices() {
+        if (_state.value.listening) stopListening()
+        _state.update { it.copy(phase = Phase.CHOOSE, error = null) }
+    }
+
+    /** "Write the brief now": from the notes already saved in this visit. */
+    fun writeSavedNotes() {
+        val id = draftId ?: return
+        if (needsConsent()) {
+            pendingAfterConsent = { writeSavedNotes() }
+            _state.update { it.copy(needsConsent = true) }
+            return
+        }
+        _state.update { it.copy(phase = Phase.DRAFTING, error = null, progress = null, progressMessage = "Reading your notes") }
+        viewModelScope.launch {
+            try {
+                container.drafts.writeBrief(id) { st ->
+                    _state.update { it.copy(progress = st.progress, progressMessage = st.message ?: it.progressMessage) }
+                }
+                _state.update { it.copy(done = id) }
+            } catch (e: Exception) {
+                onWriteFailed(id, e, back = Phase.CHOOSE)
+            }
         }
     }
 
@@ -269,13 +353,24 @@ class CaptureViewModel(
 
     fun removeSensitive() {
         _state.update { it.copy(transcript = SensitiveScan.redact(it.transcript.trim()), sensitive = null) }
-        writeBrief()
+        proceed()
     }
 
     fun keepSensitive() {
         acknowledgedText = _state.value.transcript.trim()
         _state.update { it.copy(sensitive = null) }
-        writeBrief()
+        proceed()
+    }
+
+    private fun proceed() = if (addingMore) addMore() else writeBrief()
+
+    /** Opens the sensitive-data sheet if [text] has something the client hasn't decided on yet. */
+    private fun flagged(text: String): Boolean {
+        if (text == acknowledgedText || text == savedInput?.second) return false
+        val findings = SensitiveScan.scan(text)
+        if (findings.isEmpty()) return false
+        _state.update { it.copy(sensitive = SensitiveScan.title(findings), error = null) }
+        return true
     }
 
     fun editSensitive() = _state.update { it.copy(sensitive = null, focusEditor = it.focusEditor + 1) }
@@ -295,43 +390,14 @@ class CaptureViewModel(
             _state.update { it.copy(needsConsent = true) }
             return
         }
-        if (text != acknowledgedText && text != savedInput?.second) {
-            val findings = SensitiveScan.scan(text)
-            if (findings.isNotEmpty()) {
-                _state.update { it.copy(sensitive = SensitiveScan.title(findings), error = null) }
-                return
-            }
-        }
+        addingMore = false
+        if (flagged(text)) return
         _state.update { it.copy(phase = Phase.DRAFTING, error = null, progress = null, progressMessage = "Reading your notes") }
         viewModelScope.launch {
             val drafts = container.drafts
             val id = draftId ?: drafts.create().id.also { draftId = it }
             try {
-                val saved = savedInput
-                when {
-                    saved == null -> {
-                        val voice = s.tab == TAB_SPEAK
-                        val file = s.file?.takeIf { s.tab == TAB_UPLOAD }
-                        val input = drafts.addInput(
-                            id = id,
-                            kind = when {
-                                file != null -> "file"
-                                voice -> "voice"
-                                else -> "text"
-                            },
-                            text = text,
-                            languageDetected = (s.speech as? Speech.Ready)?.engine?.languageTag?.takeIf { voice },
-                            fileName = file?.fileName,
-                            pageCount = file?.pageCount,
-                            durationSec = s.elapsedSec.takeIf { voice && it > 0 },
-                        )
-                        savedInput = input.id to text
-                    }
-                    saved.second != text -> {
-                        drafts.editInput(id, saved.first, text)
-                        savedInput = saved.first to text
-                    }
-                }
+                saveNote(id, s, text)
                 drafts.writeBrief(id) { st ->
                     _state.update { it.copy(progress = st.progress, progressMessage = st.message ?: it.progressMessage) }
                 }
@@ -342,14 +408,44 @@ class CaptureViewModel(
         }
     }
 
-    private suspend fun onWriteFailed(id: String, e: Exception) {
+    /** Saves the reviewed text as a note on this phone, or updates the one already saved for it. */
+    private suspend fun saveNote(id: String, s: State, text: String) {
+        val drafts = container.drafts
+        val saved = savedInput
+        when {
+            saved == null -> {
+                val voice = s.tab == TAB_SPEAK
+                val file = s.file?.takeIf { s.tab == TAB_UPLOAD }
+                val input = drafts.addInput(
+                    id = id,
+                    kind = when {
+                        file != null -> "file"
+                        voice -> "voice"
+                        else -> "text"
+                    },
+                    text = text,
+                    languageDetected = (s.speech as? Speech.Ready)?.engine?.languageTag?.takeIf { voice },
+                    fileName = file?.fileName,
+                    pageCount = file?.pageCount,
+                    durationSec = s.elapsedSec.takeIf { voice && it > 0 },
+                )
+                savedInput = input.id to text
+            }
+            saved.second != text -> {
+                drafts.editInput(id, saved.first, text)
+                savedInput = saved.first to text
+            }
+        }
+    }
+
+    private suspend fun onWriteFailed(id: String, e: Exception, back: Phase = Phase.TRANSCRIPT) {
         val api = e as? ApiException
         val legal = api?.detailStrings("missing")?.any { it == "terms" || it == "privacy" } == true
         when {
             // Terms out of date: the app shows them (ConsentInterceptor). AI consent is asked here.
             api?.code == ApiException.CONSENT_REQUIRED && !legal -> {
                 pendingAfterConsent = { writeBrief() }
-                _state.update { it.copy(phase = Phase.TRANSCRIPT, needsConsent = true, progress = null, progressMessage = null) }
+                _state.update { it.copy(phase = back, needsConsent = true, progress = null, progressMessage = null) }
             }
             // A policy refusal froze the draft (DraftRepository); the brief screen explains it.
             api?.code == ApiException.CONTENT_REJECTED && api.detailString("kind") == "policy" ->
@@ -361,7 +457,7 @@ class CaptureViewModel(
                     savedInput?.let { runCatching { container.drafts.removeInput(id, it.first) } }
                     savedInput = null
                 }
-                _state.update { it.copy(phase = Phase.TRANSCRIPT, error = e.userLine(), progress = null, progressMessage = null) }
+                _state.update { it.copy(phase = back, error = e.userLine(), progress = null, progressMessage = null) }
             }
         }
     }
